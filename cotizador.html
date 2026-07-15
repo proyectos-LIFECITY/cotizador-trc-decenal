@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cotizador TRC · Decenal — Proyecto</title>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg-0:#0a0d12;--bg-1:#11161e;--bg-2:#1a2230;--line:#2a3548;--text:#e6ecf5;--text-dim:#8b97aa;
+    --accent:#f4b942;--accent-2:#ff5252;--accent-3:#4dd0e1;--ok:#6bd96b;--viol:#9c6bff;--new:#4d9fff;
+    --mono:'JetBrains Mono','SF Mono','Menlo',monospace;--display:'Space Grotesk','Inter',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;min-height:100vh;background:var(--bg-0);color:var(--text);font-family:var(--mono);font-size:12px}
+  #topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:8px;padding:8px 14px;background:linear-gradient(90deg,var(--bg-1),var(--bg-0));border-bottom:1px solid var(--line);flex-wrap:wrap}
+  #topbar .brand{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.5px;cursor:pointer}
+  #topbar .brand span{color:var(--viol);font-size:8px;letter-spacing:2px;display:block;line-height:1.2}
+  #topbar .pname{color:var(--accent);font-family:var(--display);font-weight:600;font-size:13px;margin:0 6px}
+  #topbar .grow{flex:1}
+  .tabbtn{padding:7px 11px;background:var(--bg-2);border:1px solid var(--line);color:var(--text-dim);cursor:pointer;font-family:var(--mono);font-size:11px;display:flex;align-items:center;gap:6px}
+  .tabbtn.on{background:var(--accent);color:#1a1305;border-color:var(--accent);font-weight:600}
+  .tabbtn .ic{font-weight:700}
+  main{max-width:1280px;margin:0 auto;padding:18px 16px 80px}
+  .panel{display:none;flex-direction:column;gap:16px}
+  .panel.on{display:flex}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  @media (max-width:900px){.cols{grid-template-columns:1fr}}
+  .box{background:var(--bg-1);border:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:10px}
+  .box h3{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);display:flex;align-items:center;gap:8px}
+  .box h3 .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .btn{padding:9px 12px;background:var(--bg-2);border:1px solid var(--line);color:var(--text);font-family:var(--mono);font-size:11px;cursor:pointer;text-align:left;display:inline-flex;align-items:center;gap:8px;transition:all .15s}
+  .btn:hover{background:#232c3d;border-color:var(--accent)}
+  .btn .ic{color:var(--accent);font-weight:700}
+  .btn.primary{background:var(--accent);color:#1a1305;border-color:var(--accent);font-weight:600}.btn.primary .ic{color:#1a1305}
+  .btn.viol{border-color:var(--viol)}.btn.viol .ic{color:var(--viol)}
+  .btn.ok{border-color:var(--ok)}.btn.ok .ic{color:var(--ok)}
+  .btn.sm{padding:6px 9px;font-size:10px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap}
+  .ctl{display:flex;flex-direction:column;gap:4px}
+  .ctl label{font-size:9px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;display:flex;justify-content:space-between}
+  .ctl input,.ctl select,.ctl textarea{background:var(--bg-0);border:1px solid var(--line);color:var(--text);padding:7px;font-family:var(--mono);font-size:11px;width:100%}
+  .ctl input.auto,.ctl select.auto{border-left:3px solid var(--new)}
+  .ctl textarea{resize:vertical;min-height:70px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .stat{background:var(--bg-2);border:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:2px}
+  .stat .lbl{font-size:8px;color:var(--text-dim);letter-spacing:1.5px;text-transform:uppercase}
+  .stat .val{font-family:var(--display);font-size:16px;font-weight:600;color:var(--accent)}
+  .stat .val.ok{color:var(--ok)}.stat .val.viol{color:var(--viol)}.stat .val.new{color:var(--new)}
+  table.tbl{width:100%;border-collapse:collapse;font-size:11px}
+  table.tbl th{background:var(--bg-2);color:var(--text-dim);text-align:left;padding:7px 8px;font-size:9px;letter-spacing:1px;text-transform:uppercase;position:sticky;top:44px}
+  table.tbl td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.tbl tr:hover td{background:rgba(26,34,48,.5)}
+  table.tbl input,table.tbl select{background:var(--bg-0);border:1px solid var(--line);color:var(--text);padding:5px 6px;font-family:var(--mono);font-size:11px;width:100%}
+  table.tbl input.num{text-align:right}
+  table.tbl .del{color:var(--text-dim);cursor:pointer;text-align:center}.tbl .del:hover{color:var(--accent-2)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:9px;font-size:9px;letter-spacing:.5px;white-space:nowrap}
+  .pill.falta{background:rgba(255,82,82,.18);color:#ff8f8f}
+  .pill.proceso{background:rgba(244,185,66,.18);color:var(--accent)}
+  .pill.listo{background:rgba(107,217,107,.18);color:var(--ok)}
+  .meter .bar{height:12px;background:var(--bg-0);border:1px solid var(--line);position:relative;overflow:hidden}
+  .meter .bar span{position:absolute;left:0;top:0;bottom:0;background:var(--ok);transition:width .2s}
+  .meter .lbls{display:flex;justify-content:space-between;font-size:10px;margin-top:4px}
+  .hint{font-size:10px;color:var(--text-dim);line-height:1.6}
+  .empty{color:var(--text-dim);font-size:11px;padding:12px;text-align:center;font-style:italic}
+  #canvas3d{width:100%;height:300px;background:#000;border:1px solid var(--line);display:block}
+  /* GANTT */
+  #gantt-wrap{display:grid;grid-template-columns:430px 1fr;border:1px solid var(--line);overflow-x:auto}
+  #gantt-left table{width:100%}
+  #gantt-right{position:relative;background:var(--bg-0);min-width:300px}
+  .g-months{display:flex;height:26px;border-bottom:1px solid var(--line);position:relative}
+  .g-month{position:absolute;top:0;height:100%;border-left:1px solid var(--line);font-size:9px;color:var(--text-dim);padding:7px 0 0 4px;letter-spacing:1px;overflow:hidden;white-space:nowrap}
+  .g-row{position:relative;height:33px;border-bottom:1px solid var(--line)}
+  .g-bar{position:absolute;top:8px;height:16px;background:linear-gradient(90deg,var(--viol),#7a4fe0);border:1px solid var(--viol);border-radius:3px;font-size:8px;color:#fff;display:flex;align-items:center;padding:0 5px;overflow:hidden;white-space:nowrap}
+  .g-today{position:absolute;top:0;bottom:0;width:1px;background:var(--accent-2);z-index:2}
+  .flash{position:fixed;top:52px;left:50%;transform:translateX(-50%);background:rgba(10,13,18,.96);border:1px solid var(--viol);color:var(--text);padding:9px 16px;font-size:11px;z-index:200;border-radius:6px;max-width:80%;display:none}
+  ::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-track{background:var(--bg-0)}::-webkit-scrollbar-thumb{background:var(--line)}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+</head>
+<body>
+<div id="topbar">
+  <div class="brand" onclick="location.href='index.html'">COTIZADOR<span>TRC · DECENAL</span></div>
+  <div class="pname" id="pname">—</div>
+  <button class="tabbtn on" data-tab="modelo"><span class="ic">◈</span> Modelo 3D</button>
+  <button class="tabbtn" data-tab="poliza"><span class="ic">§</span> Datos póliza</button>
+  <button class="tabbtn" data-tab="presupuesto"><span class="ic">$</span> Presupuesto</button>
+  <button class="tabbtn" data-tab="cronograma"><span class="ic">▦</span> Cronograma</button>
+  <button class="tabbtn" data-tab="documentos"><span class="ic">✓</span> Documentos <span id="docs-badge" class="pill falta">0%</span></button>
+  <button class="tabbtn" data-tab="aseguradoras"><span class="ic">⛨</span> Aseguradoras</button>
+  <button class="tabbtn" data-tab="correo"><span class="ic">✉</span> Correo</button>
+  <div class="grow"></div>
+  <button class="btn sm" id="btn-export-json"><span class="ic">⇓</span> JSON</button>
+  <button class="btn sm primary" id="btn-save"><span class="ic">💾</span> Guardar</button>
+</div>
+<div class="flash" id="flash"></div>
+<main>
+
+<!-- ============ MODELO 3D ============ -->
+<section class="panel on" id="panel-modelo">
+  <div class="cols">
+    <div class="box">
+      <h3><span class="dot"></span> Cargar modelo</h3>
+      <div class="btnrow">
+        <label class="btn primary" for="file-ifc"><span class="ic">⇪</span> Subir IFC</label>
+        <input type="file" id="file-ifc" accept=".ifc" style="display:none">
+        <label class="btn viol" for="file-lifecity"><span class="ic">⇪</span> JSON LifeCity (repo 50)</label>
+        <input type="file" id="file-lifecity" accept=".json" style="display:none">
+      </div>
+      <p class="hint">Sube el IFC del proyecto (Revit / masas.html) o el JSON exportado desde el editor LifeCity BIM 5D. La app extrae niveles, sótanos, áreas y cantidades por categoría; lo que no venga en el modelo se edita a mano abajo.</p>
+      <div class="grid4" id="model-stats"></div>
+      <h3><span class="dot"></span> Cantidades detectadas</h3>
+      <div id="model-counts"><div class="empty">Sin modelo cargado</div></div>
+    </div>
+    <div class="box">
+      <h3><span class="dot"></span> Esquema volumétrico</h3>
+      <canvas id="canvas3d"></canvas>
+      <h3><span class="dot"></span> Datos de la obra (editables)</h3>
+      <div class="grid2">
+        <div class="ctl"><label>Nombre del proyecto</label><input data-p="model.proyecto"></div>
+        <div class="ctl"><label>Dirección del riesgo</label><input data-p="model.direccion"></div>
+        <div class="ctl"><label>Ciudad / municipio</label><input data-p="model.ciudad"></div>
+        <div class="ctl"><label>Plantas sobre rasante</label><input type="number" data-p="model.plantasSobre" data-num></div>
+        <div class="ctl"><label>Sótanos</label><input type="number" data-p="model.sotanos" data-num></div>
+        <div class="ctl"><label>m² sobre rasante</label><input type="number" data-p="model.m2Sobre" data-num></div>
+        <div class="ctl"><label>m² bajo rasante</label><input type="number" data-p="model.m2Bajo" data-num></div>
+        <div class="ctl"><label>Área total construida (m²)</label><input type="number" data-p="model.areaTotal" data-num></div>
+        <div class="ctl"><label>Altura libre máx (m)</label><input type="number" step="0.1" data-p="model.alturaLibre" data-num></div>
+        <div class="ctl"><label>Luz libre entre apoyos (m)</label><input type="number" step="0.1" data-p="model.luzLibre" data-num></div>
+        <div class="ctl"><label>Voladizo máx (m)</label><input type="number" step="0.1" data-p="model.voladizo" data-num></div>
+        <div class="ctl"><label>Nº de viviendas / unidades</label><input type="number" data-p="model.numUnidades" data-num></div>
+      </div>
+      <button class="btn ok" id="btn-apply-model"><span class="ic">→</span> Aplicar datos del modelo a los formularios de póliza</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DATOS PÓLIZA ============ -->
+<section class="panel" id="panel-poliza">
+  <div class="box">
+    <h3><span class="dot"></span> Tipo de cotización</h3>
+    <div class="btnrow">
+      <div class="ctl" style="max-width:280px"><label>Póliza a cotizar</label>
+        <select data-p="poliza.tipo"><option value="ambas">TRC + Decenal</option><option value="trc">Solo Todo Riesgo Construcción</option><option value="decenal">Solo Decenal</option></select>
+      </div>
+    </div>
+  </div>
+  <div class="cols">
+    <div class="box">
+      <h3><span class="dot"></span> TRC / Adecuaciones — 12 datos requeridos</h3>
+      <div class="grid2">
+        <div class="ctl"><label>1. Tomador / asegurado</label><input data-p="poliza.trc.tomador"></div>
+        <div class="ctl"><label>2. NIT</label><input data-p="poliza.trc.nit"></div>
+        <div class="ctl"><label>3. Ingresos último año ($)</label><input type="number" data-p="poliza.trc.ingresosUltimoAno" data-num></div>
+        <div class="ctl"><label>4. Proyección ingresos año en curso ($)</label><input type="number" data-p="poliza.trc.proyeccionIngresos" data-num></div>
+        <div class="ctl"><label>5. Nómina mensual ($)</label><input type="number" data-p="poliza.trc.nominaMensual" data-num></div>
+        <div class="ctl"><label>9. Vigencia de la adecuación (meses)</label><input type="number" data-p="poliza.trc.vigenciaMeses" data-num></div>
+      </div>
+      <div class="ctl"><label>6. Actividad (giro del negocio, detallado)</label><textarea data-p="poliza.trc.actividad"></textarea></div>
+      <div class="ctl"><label>10. Siniestralidad últimos 5 años</label><textarea data-p="poliza.trc.siniestralidad"></textarea></div>
+      <div class="grid2">
+        <div class="ctl"><label>11. Dirección del riesgo (incl. ciudad)</label><input data-p="poliza.trc.direccion"></div>
+        <div class="ctl"><label>12. Límite asegurado ($)</label><input type="number" data-p="poliza.trc.limiteAsegurado" data-num></div>
+      </div>
+      <p class="hint">7. Cronograma → pestaña <b>Cronograma</b> · 8. Presupuesto → pestaña <b>Presupuesto</b>. Ambos se adjuntan a la solicitud.</p>
+    </div>
+    <div class="box">
+      <h3><span class="dot"></span> Decenal — cuestionario Seguros Mundial</h3>
+      <div class="grid2">
+        <div class="ctl"><label>Tomador</label><input data-p="poliza.decenal.tomador"></div>
+        <div class="ctl"><label>NIT tomador</label><input data-p="poliza.decenal.tomadorNit"></div>
+        <div class="ctl"><label>Intermediario</label><input data-p="poliza.decenal.intermediario"></div>
+        <div class="ctl"><label>Enajenador</label><input data-p="poliza.decenal.enajenador"></div>
+        <div class="ctl"><label>Constructor</label><input data-p="poliza.decenal.constructor"></div>
+        <div class="ctl"><label>Empresa de geotecnia</label><input data-p="poliza.decenal.geotecnia"></div>
+        <div class="ctl"><label>Diseñador estructural</label><input data-p="poliza.decenal.disenadorEstructural"></div>
+        <div class="ctl"><label>Revisor del diseño (Ley 1796)</label><input data-p="poliza.decenal.revisorDiseno"></div>
+        <div class="ctl"><label>Supervisor técnico (Ley 1796)</label><input data-p="poliza.decenal.supervisorTecnico"></div>
+        <div class="ctl"><label>¿Defectos previos del diseñador?</label><select data-p="poliza.decenal.defectosDisenador"><option>No</option><option>Sí</option></select></div>
+        <div class="ctl"><label>¿Defectos previos del constructor?</label><select data-p="poliza.decenal.defectosConstructor"><option>No</option><option>Sí</option></select></div>
+        <div class="ctl"><label>Tipología</label><select data-p="poliza.decenal.tipologia"><option>Viviendas en bloque</option><option>Viviendas unifamiliares</option><option>Oficinas</option><option>Centros comerciales</option><option>Naves industriales</option></select></div>
+        <div class="ctl"><label>Tipo de vivienda</label><select data-p="poliza.decenal.tipoVivienda"><option>Tradicional</option><option>VIS</option><option>VIP</option></select></div>
+        <div class="ctl"><label>Nº viviendas</label><input type="number" data-p="poliza.decenal.numViviendas" data-num></div>
+        <div class="ctl"><label>Estrato</label><input type="number" data-p="poliza.decenal.estrato" data-num></div>
+        <div class="ctl"><label>Tipo de zona</label><select data-p="poliza.decenal.tipoZona"><option>Urbana urbanización media</option><option>Urbana densamente urbanizada</option><option>Rural poco urbanizada</option></select></div>
+        <div class="ctl"><label>Tipo de contrato</label><select data-p="poliza.decenal.tipoContrato"><option>Privado</option><option>Público</option><option>Otros</option></select></div>
+        <div class="ctl"><label>Localización (dpto/ciudad/dirección)</label><input data-p="poliza.decenal.localizacion"></div>
+        <div class="ctl"><label>Fecha inicio prevista</label><input type="date" data-p="poliza.decenal.fechaInicio"></div>
+        <div class="ctl"><label>Fecha fin prevista</label><input type="date" data-p="poliza.decenal.fechaFin"></div>
+        <div class="ctl"><label>Estructura vertical</label><select data-p="poliza.decenal.estructuraVertical"><option>Hormigón armado</option><option>Prefabricado hormigón</option><option>Metálica</option><option>Muros de fábrica</option><option>Madera</option><option>Mixta</option><option>Sistema no tradicional</option></select></div>
+        <div class="ctl"><label>Estructura horizontal</label><select data-p="poliza.decenal.estructuraHorizontal"><option>Hormigón armado</option><option>Hormigón postesado</option><option>Prefabricado hormigón</option><option>Acero</option><option>Madera</option><option>Mixta</option></select></div>
+        <div class="ctl"><label>Cimentación</label><select data-p="poliza.decenal.cimentacion"><option>Zapatas</option><option>Losa de cimentación</option><option>Pilotes</option><option>Caisson</option><option>Cimentaciones especiales</option></select></div>
+        <div class="ctl"><label>Fachadas</label><select data-p="poliza.decenal.fachadas"><option>Revestida</option><option>Cara vista (ladrillo)</option><option>Aplacada</option><option>Muro cortina</option><option>Tras-ventilada</option><option>Otras</option></select></div>
+        <div class="ctl"><label>Cubiertas</label><select data-p="poliza.decenal.cubiertas"><option>Plana no transitable</option><option>Plana transitable</option><option>Inclinada sobre viga</option><option>Inclinada sobre tabiques</option><option>Otras</option></select></div>
+        <div class="ctl"><label>¿Informe geotécnico?</label><select data-p="poliza.decenal.informeGeotecnico"><option>Sí</option><option>No</option></select></div>
+        <div class="ctl"><label>Lote</label><select data-p="poliza.decenal.lote"><option>Horizontal</option><option>En ladera</option></select></div>
+        <div class="ctl"><label>Financiación</label><select data-p="poliza.decenal.financiacion"><option>Capital propio</option><option>Entidad financiera</option><option>Mixta</option></select></div>
+        <div class="ctl"><label>Entidad financiera (si aplica)</label><input data-p="poliza.decenal.entidadFinanciera"></div>
+      </div>
+      <div class="ctl"><label>Descripción de la obra</label><textarea data-p="poliza.decenal.descripcionObra"></textarea></div>
+      <p class="hint">Suma asegurada provisional = costo directo + otros gastos (indirectos), tomada automáticamente de la pestaña <b>Presupuesto</b>. El cuestionario completo (PDF Seguros Mundial) se diligencia con estos datos + los del modelo.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRESUPUESTO ============ -->
+<section class="panel" id="panel-presupuesto">
+  <div class="grid4" id="pres-stats"></div>
+  <div class="box">
+    <h3><span class="dot"></span> Base de datos APU</h3>
+    <div class="btnrow">
+      <label class="btn primary" for="file-apu"><span class="ic">⇪</span> Importar APU (Excel/CSV: Código | Descripción | Unidad | Valor)</label>
+      <input type="file" id="file-apu" accept=".xlsx,.xls,.csv" style="display:none">
+      <span class="hint" id="apu-info" style="align-self:center">Sin base APU</span>
+    </div>
+  </div>
+  <div class="box">
+    <h3><span class="dot"></span> Costos directos</h3>
+    <div class="btnrow">
+      <button class="btn viol" id="btn-items-modelo"><span class="ic">◈</span> Generar ítems desde el modelo</button>
+      <button class="btn" id="btn-item-add"><span class="ic">+</span> Ítem</button>
+      <button class="btn" id="btn-pres-csv"><span class="ic">⇓</span> CSV</button>
+      <button class="btn" id="btn-pres-xlsx"><span class="ic">⇓</span> Excel</button>
+    </div>
+    <div style="overflow-x:auto"><table class="tbl" id="tbl-items">
+      <thead><tr><th style="width:26%">Descripción</th><th>Und</th><th>Cant.</th><th style="width:26%">APU</th><th>Vr. unitario</th><th>Total</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+  <div class="box">
+    <h3><span class="dot"></span> Costos indirectos — 13 capítulos exigidos para el decenal</h3>
+    <div style="overflow-x:auto"><table class="tbl" id="tbl-ind">
+      <thead><tr><th>Capítulo</th><th style="width:180px">Valor ($)</th></tr></thead><tbody></tbody>
+    </table></div>
+    <p class="hint">Estos capítulos son obligatorios en el desglose que pide la aseguradora para el decenal. En TRC alimentan el presupuesto total / límite asegurado.</p>
+  </div>
+</section>
+
+<!-- ============ CRONOGRAMA ============ -->
+<section class="panel" id="panel-cronograma">
+  <div class="box">
+    <h3><span class="dot"></span> Cronograma de obra (tipo Project)</h3>
+    <div class="btnrow">
+      <div class="ctl" style="max-width:170px"><label>Fecha de inicio</label><input type="date" id="cron-start"></div>
+      <button class="btn viol" id="btn-cron-gen" style="align-self:end"><span class="ic">◈</span> Generar desde el modelo</button>
+      <button class="btn" id="btn-cron-add" style="align-self:end"><span class="ic">+</span> Actividad</button>
+      <button class="btn" id="btn-cron-csv" style="align-self:end"><span class="ic">⇓</span> CSV (MS Project)</button>
+    </div>
+    <div id="gantt-wrap">
+      <div id="gantt-left">
+        <table class="tbl" id="tbl-cron">
+          <thead><tr><th>Actividad</th><th style="width:112px">Inicio</th><th style="width:52px">Días</th><th style="width:86px">Fin</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="gantt-right"></div>
+    </div>
+    <p class="hint">El plazo total alimenta la <b>vigencia</b> de la TRC y el <b>plazo de ejecución</b> del decenal (fechas inicio/fin previstas). Exporta el CSV y ábrelo en Excel/Project si necesitas ajustarlo allá.</p>
+  </div>
+</section>
+
+<!-- ============ DOCUMENTOS ============ -->
+<section class="panel" id="panel-documentos">
+  <div class="cols">
+    <div class="box" style="grid-column:1/-1">
+      <h3><span class="dot"></span> Entregables para cotizar el decenal</h3>
+      <div class="meter"><div class="bar"><span id="docs-bar"></span></div><div class="lbls"><span id="docs-pct">0% completo</span><span id="docs-cnt"></span></div></div>
+      <div style="overflow-x:auto"><table class="tbl" id="tbl-docs">
+        <thead><tr><th style="width:44%">Documento</th><th style="width:130px">Estado</th><th>Archivo / observación</th><th style="width:90px"></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <div class="btnrow">
+        <button class="btn ok" id="btn-val-ind"><span class="ic">✓</span> Validar costos indirectos del presupuesto</button>
+      </div>
+      <p class="hint" id="val-ind-out"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ASEGURADORAS ============ -->
+<section class="panel" id="panel-aseguradoras">
+  <div class="box">
+    <h3><span class="dot"></span> Cotizaciones preliminares — aseguradoras colombianas</h3>
+    <div class="btnrow">
+      <button class="btn viol" id="btn-copy-resumen"><span class="ic">⧉</span> Copiar resumen del riesgo (para formularios de contacto)</button>
+    </div>
+    <div style="overflow-x:auto"><table class="tbl" id="tbl-aseg">
+      <thead><tr><th>Aseguradora</th><th>Producto</th><th></th><th style="width:150px">Estado</th><th style="width:130px">Prima cotizada ($)</th><th>Notas</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="hint">TRC y decenal son productos de líneas de ingeniería: casi ninguna aseguradora cotiza 100% en línea. Abre la página, usa el resumen copiado en el formulario de contacto/cotización, y registra aquí el estado y la prima cuando respondan. Para la navegación automática con diligenciamiento asistido usa el comando <b>/cotizacion-preliminar-web</b> del plugin de Claude Code.</p>
+  </div>
+</section>
+
+<!-- ============ CORREO ============ -->
+<section class="panel" id="panel-correo">
+  <div class="cols">
+    <div class="box">
+      <h3><span class="dot"></span> Generar correo</h3>
+      <div class="grid2">
+        <div class="ctl"><label>Tipo de correo</label>
+          <select id="mail-tipo">
+            <option value="avance">Estado de avance de entregables (decenal)</option>
+            <option value="solicitud-decenal">Solicitud de cotización DECENAL (requiere 100% docs)</option>
+            <option value="solicitud-trc">Solicitud de cotización TRC</option>
+          </select>
+        </div>
+        <div class="ctl"><label>Para</label><input id="mail-para" placeholder="ingenieria@segurosmundial.com.co"></div>
+      </div>
+      <div class="ctl"><label>Asunto</label><input id="mail-asunto"></div>
+      <div class="ctl"><label>Cuerpo</label><textarea id="mail-cuerpo" style="min-height:260px"></textarea></div>
+      <div class="btnrow">
+        <button class="btn" id="btn-mail-regen"><span class="ic">↻</span> Regenerar plantilla</button>
+      </div>
+    </div>
+    <div class="box">
+      <h3><span class="dot"></span> Enviar</h3>
+      <div class="ctl"><label>Carpeta local de adjuntos (para envío SMTP)</label><input data-p="correo.adjuntosDir" placeholder="G:\Mi unidad\PROYECTO X\docs decenal"></div>
+      <div class="btnrow">
+        <button class="btn primary" id="btn-mailto"><span class="ic">✉</span> Abrir en mi correo (mailto)</button>
+        <button class="btn ok" id="btn-smtp"><span class="ic">➤</span> Enviar por SMTP (adjunta la carpeta)</button>
+      </div>
+      <p class="hint" id="smtp-status">Verificando configuración SMTP…</p>
+      <p class="hint">El correo de <b>solicitud decenal</b> solo se habilita cuando el checklist de documentos está al 100%. El de <b>avance</b> puedes enviarlo en cualquier momento con el estado actual de los entregables. Para SMTP crea <b>webapp/config.email.json</b> (ver config.email.example.json) con una App Password de Gmail.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+/* ================= ESTADO ================= */
+const $=id=>document.getElementById(id);
+const KEY='cotizador_seguros_projects';
+const QS=new URLSearchParams(location.search);
+const PID=QS.get('id')||('proyecto_'+Date.now().toString(36));
+const fmt=n=>'$'+Math.round(n||0).toLocaleString('es-CO');
+const hoy=()=>new Date().toISOString().slice(0,10);
+
+const INDIRECTOS=['Diseño de proyecto','Estudio geotécnico','Otros estudios y diseños','Dirección de obra','Revisión de diseños','Supervisión Técnica Independiente','Interventoría (si aplica)','Control de calidad','Gastos notariales','Seguros','Otros honorarios y administración','Gastos generales','Licencias e impuestos'];
+const DOCS14=['Memoria descriptiva del proyecto','Presupuesto desglosado (directos + indirectos)','Cronograma de obra 0% ejecución','Planos estructurales en PDF','Estudio de suelos (máx. 2 años)','Licencia de construcción aprobada','Memorias de cálculo del diseño estructural','Memorias de la revisión del diseño estructural','Presentación del constructor (lista de proyectos)','Hoja de vida ingeniero de suelos','Hoja de vida diseñador estructural','Hoja de vida revisor de diseños','Hoja de vida supervisor técnico','Formulario de solicitud decenal diligenciado'];
+const ASEG=[
+ {nombre:'Seguros Mundial',producto:'Decenal + TRC',url:'https://www.segurosmundial.com.co'},
+ {nombre:'SBS Seguros',producto:'Decenal + TRC',url:'https://www.sbseguros.co'},
+ {nombre:'Sura',producto:'TRC (+decenal consultar)',url:'https://www.segurossura.com.co'},
+ {nombre:'Seguros Bolívar',producto:'TRC',url:'https://www.segurosbolivar.com'},
+ {nombre:'AXA Colpatria',producto:'TRC',url:'https://www.axacolpatria.co'},
+ {nombre:'Mapfre Colombia',producto:'TRC',url:'https://www.mapfre.com.co'},
+ {nombre:'Allianz Colombia',producto:'TRC',url:'https://www.allianz.co'},
+ {nombre:'HDI Seguros',producto:'TRC',url:'https://www.hdi.com.co'},
+ {nombre:'Chubb Colombia',producto:'TRC',url:'https://www.chubb.com/co-es'},
+ {nombre:'Zurich Colombia',producto:'TRC + decenal (consultar)',url:'https://www.zurich.com.co'},
+ {nombre:'La Previsora',producto:'TRC (obra pública)',url:'https://www.previsora.gov.co'},
+ {nombre:'Seguros del Estado',producto:'TRC (obra pública)',url:'https://www.segurosdelestado.com'}];
+
+function defaults(nombre){return{
+ id:PID,nombre:nombre||PID,savedAt:null,
+ model:{source:null,fileName:null,proyecto:'',direccion:'',ciudad:'Cali',niveles:[],plantasSobre:null,sotanos:null,m2Sobre:null,m2Bajo:null,areaTotal:null,alturaLibre:null,luzLibre:null,voladizo:null,numUnidades:null,cantidades:{}},
+ poliza:{tipo:'ambas',
+  trc:{tomador:'',nit:'',ingresosUltimoAno:null,proyeccionIngresos:null,nominaMensual:null,actividad:'',vigenciaMeses:null,siniestralidad:'Sin siniestralidad en los últimos 5 años',direccion:'',limiteAsegurado:null},
+  decenal:{tomador:'',tomadorNit:'',intermediario:'',enajenador:'',constructor:'',geotecnia:'',disenadorEstructural:'',revisorDiseno:'',supervisorTecnico:'',defectosDisenador:'No',defectosConstructor:'No',descripcionObra:'',localizacion:'',tipologia:'Viviendas en bloque',tipoVivienda:'Tradicional',numViviendas:null,estrato:null,tipoZona:'Urbana urbanización media',tipoContrato:'Privado',fechaInicio:'',fechaFin:'',estructuraVertical:'Hormigón armado',estructuraHorizontal:'Hormigón armado',cimentacion:'Zapatas',fachadas:'Revestida',cubiertas:'Plana no transitable',informeGeotecnico:'Sí',lote:'Horizontal',financiacion:'Capital propio',entidadFinanciera:''}},
+ presupuesto:{apus:[],items:[],indirectos:INDIRECTOS.map(c=>({capitulo:c,valor:0})),totalDirecto:0,totalIndirecto:0},
+ cronograma:{actividades:[]},
+ documentos:DOCS14.map((d,i)=>({id:i+1,nombre:d,estado:'falta',archivo:''})),
+ aseguradoras:ASEG.map(a=>({...a,estado:'pendiente',prima:'',notas:''})),
+ correo:{adjuntosDir:''}
+};}
+
+function loadP(){
+ const all=JSON.parse(localStorage.getItem(KEY)||'{}');
+ const saved=all[PID]||{};
+ const d=defaults(saved.nombre);
+ const P={...d,...saved,id:PID};
+ P.model={...d.model,...(saved.model||{})};
+ P.poliza={...d.poliza,...(saved.poliza||{}),trc:{...d.poliza.trc,...((saved.poliza||{}).trc||{})},decenal:{...d.poliza.decenal,...((saved.poliza||{}).decenal||{})}};
+ P.presupuesto={...d.presupuesto,...(saved.presupuesto||{})};
+ if(!P.presupuesto.indirectos||P.presupuesto.indirectos.length!==13)P.presupuesto.indirectos=d.presupuesto.indirectos;
+ P.cronograma={...d.cronograma,...(saved.cronograma||{})};
+ P.documentos=(saved.documentos&&saved.documentos.length===14)?saved.documentos:d.documentos;
+ P.aseguradoras=(saved.aseguradoras&&saved.aseguradoras.length)?saved.aseguradoras:d.aseguradoras;
+ P.correo={...d.correo,...(saved.correo||{})};
+ return P;
+}
+let P=loadP();
+$('pname').textContent=P.nombre;
+document.title='Cotizador — '+P.nombre;
+
+let saveTimer=null;
+function save(showFlash){
+ P.savedAt=new Date().toISOString();
+ const all=JSON.parse(localStorage.getItem(KEY)||'{}');
+ all[PID]=P; localStorage.setItem(KEY,JSON.stringify(all));
+ fetch('/api/save-project',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:PID,data:P})}).catch(()=>{});
+ if(showFlash)flash('Proyecto guardado ✓ (navegador + webapp/proyectos/'+PID+'.json)');
+}
+function autosave(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>save(false),1500);}
+function flash(msg,ms=2600){const f=$('flash');f.textContent=msg;f.style.display='block';clearTimeout(f._t);f._t=setTimeout(()=>f.style.display='none',ms);}
+
+/* ============ BIND GENÉRICO data-p ============ */
+const getPath=(o,p)=>p.split('.').reduce((a,k)=>a&&a[k],o);
+const setPath=(o,p,v)=>{const ks=p.split('.');const last=ks.pop();ks.reduce((a,k)=>a[k]=a[k]||{},o)[last]=v;};
+function bindAll(){
+ document.querySelectorAll('[data-p]').forEach(el=>{
+  const v=getPath(P,el.dataset.p);
+  el.value=(v===null||v===undefined)?'':v;
+  el.oninput=()=>{
+   let val=el.value;
+   if(el.hasAttribute('data-num'))val=val===''?null:parseFloat(val);
+   setPath(P,el.dataset.p,val);
+   el.classList.remove('auto');
+   autosave();
+   if(el.dataset.p.startsWith('presupuesto'))renderPresStats();
+  };
+ });
+}
+
+/* ================= TABS ================= */
+document.querySelectorAll('.tabbtn[data-tab]').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('.tabbtn[data-tab]').forEach(x=>x.classList.toggle('on',x===b));
+ document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id==='panel-'+b.dataset.tab));
+ if(b.dataset.tab==='cronograma')renderCron();
+ if(b.dataset.tab==='correo')regenMail();
+});
+
+/* ================= MODELO: IFC ================= */
+const CAT_MAP={WALL:'Muros',WALLSTANDARDCASE:'Muros',SLAB:'Losas',COLUMN:'Columnas',BEAM:'Vigas',DOOR:'Puertas',WINDOW:'Ventanas',STAIR:'Escaleras',STAIRFLIGHT:'Escaleras',ROOF:'Cubiertas',FOOTING:'Cimentación',PILE:'Cimentación',SPACE:'Espacios',COVERING:'Acabados',RAILING:'Barandas',CURTAINWALL:'Muro cortina',MEMBER:'Estructura metálica',PLATE:'Estructura metálica',FLOWTERMINAL:'Aparatos MEP',FLOWSEGMENT:'Redes MEP',PIPESEGMENT:'Redes MEP',DUCTSEGMENT:'Redes MEP'};
+
+function parseIfcText(text){
+ const counts={}; let m;
+ const reEnt=/=\s*IFC([A-Z0-9]+)\s*\(/g;
+ while((m=reEnt.exec(text))){const cat=CAT_MAP[m[1]];if(cat)counts[cat]=(counts[cat]||0)+1;}
+ // niveles
+ const niveles=[];
+ for(const line of text.split(';')){
+  if(!line.includes('IFCBUILDINGSTOREY('))continue;
+  const strs=[...line.matchAll(/'([^']*)'/g)].map(x=>x[1]);
+  const clean=line.replace(/#\d+/g,'').replace(/'[^']*'/g,'');
+  const nums=[...clean.matchAll(/(-?\d+\.?\d*(?:[eE][-+]?\d+)?)/g)].map(x=>parseFloat(x[1]));
+  const name=strs[1]||strs[0]||('Nivel '+(niveles.length+1));
+  const elev=nums.length?nums[nums.length-1]:0;
+  niveles.push({name,elev});
+ }
+ niveles.sort((a,b)=>a.elev-b.elev);
+ // áreas (quantity sets)
+ let areaTotal=0;
+ for(const line of text.split(';')){
+  if(!line.includes('IFCQUANTITYAREA('))continue;
+  const strs=[...line.matchAll(/'([^']*)'/g)].map(x=>x[1]);
+  if(strs[0]&&!/floorarea|grossarea|netarea/i.test(strs[0]))continue;
+  const clean=line.replace(/#\d+/g,'').replace(/'[^']*'/g,'');
+  const nums=[...clean.matchAll(/(-?\d+\.?\d*(?:[eE][-+]?\d+)?)/g)].map(x=>parseFloat(x[1]));
+  if(nums.length)areaTotal+=nums[nums.length-1];
+ }
+ // nombre del proyecto
+ const pm=text.match(/=\s*IFCPROJECT\('[^']*',[^,]*,'([^']*)'/);
+ return {counts,niveles,areaTotal:Math.round(areaTotal)||null,proyecto:pm?pm[1]:''};
+}
+
+$('file-ifc').onchange=e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const r=new FileReader();
+ r.onload=()=>{
+  try{
+   const d=parseIfcText(r.result);
+   const sot=d.niveles.filter(n=>n.elev<-0.5).length;
+   const sob=d.niveles.length-sot;
+   Object.assign(P.model,{source:'ifc',fileName:f.name,niveles:d.niveles,cantidades:d.counts,
+    plantasSobre:sob||P.model.plantasSobre,sotanos:sot,
+    areaTotal:d.areaTotal||P.model.areaTotal,
+    m2Sobre:d.areaTotal&&sot===0?d.areaTotal:P.model.m2Sobre,
+    proyecto:P.model.proyecto||d.proyecto});
+   bindAll();renderModel();autosave();
+   flash(`IFC procesado: ${d.niveles.length} niveles (${sot} sótanos), ${Object.values(d.counts).reduce((a,b)=>a+b,0)} elementos`);
+  }catch(err){flash('Error leyendo IFC: '+err.message);}
+ };
+ r.readAsText(f); e.target.value='';
+};
+
+/* ============ MODELO: JSON LifeCity (repo 50) ============ */
+$('file-lifecity').onchange=e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const r=new FileReader();
+ r.onload=()=>{
+  try{
+   const st=JSON.parse(r.result);
+   if(!st.levels&&!st.masses&&!st.bim)throw new Error('no parece un JSON de LifeCity (masas.html)');
+   const counts={};
+   (st.bim||[]).forEach(b=>{const k=b.typeId||'objeto';counts[k.charAt(0).toUpperCase()+k.slice(1)+'s']=(counts[k.charAt(0).toUpperCase()+k.slice(1)+'s']||0)+1;});
+   if(st.walls&&st.walls.length)counts['Muros']=(counts['Muros']||0)+st.walls.length;
+   if(st.rooms&&st.rooms.length)counts['Espacios']=st.rooms.length;
+   if(st.mep&&st.mep.length)counts['Redes MEP']=st.mep.length;
+   const niveles=(st.levels||[]).map(l=>({name:l.name,elev:l.elev}));
+   const res=st.resumen||{};
+   const dir=st.predio?[st.predio.direpred,st.predio.nom_barrio].filter(Boolean).join(', '):'';
+   Object.assign(P.model,{source:'lifecity',fileName:f.name,niveles,cantidades:counts,
+    plantasSobre:niveles.filter(n=>n.elev>=-0.5).length||P.model.plantasSobre,
+    sotanos:niveles.filter(n=>n.elev<-0.5).length,
+    areaTotal:Math.round(res.area_construida)||P.model.areaTotal,
+    direccion:dir||P.model.direccion,
+    numUnidades:(st.rooms||[]).length||P.model.numUnidades});
+   if(st.apus&&st.apus.length){P.presupuesto.apus=st.apus;renderApuInfo();}
+   bindAll();renderModel();renderItems();autosave();
+   flash(`Proyecto LifeCity importado: ${niveles.length} niveles, ${res.area_construida?Math.round(res.area_construida)+' m² construidos':'sin resumen de área'}${st.apus&&st.apus.length?', '+st.apus.length+' APUs':''}`);
+  }catch(err){flash('Error importando JSON: '+err.message);}
+ };
+ r.readAsText(f); e.target.value='';
+};
+
+function renderModel(){
+ const s=$('model-stats');
+ const m=P.model;
+ s.innerHTML=`
+  <div class="stat"><span class="lbl">Niveles</span><span class="val">${m.niveles.length||'—'}</span></div>
+  <div class="stat"><span class="lbl">Sótanos</span><span class="val viol">${m.sotanos??'—'}</span></div>
+  <div class="stat"><span class="lbl">Área total m²</span><span class="val ok">${m.areaTotal?m.areaTotal.toLocaleString('es-CO'):'—'}</span></div>
+  <div class="stat"><span class="lbl">Fuente</span><span class="val new" style="font-size:11px">${m.fileName||'manual'}</span></div>`;
+ const c=$('model-counts');
+ const ks=Object.keys(m.cantidades||{});
+ c.innerHTML=ks.length?'<table class="tbl"><thead><tr><th>Categoría</th><th>Cantidad</th></tr></thead><tbody>'+
+   ks.sort().map(k=>`<tr><td>${k}</td><td>${m.cantidades[k]}</td></tr>`).join('')+'</tbody></table>'
+  :'<div class="empty">Sin modelo cargado</div>';
+ draw3D();
+}
+
+/* ============ MODELO: esquema volumétrico Three.js ============ */
+let scene,camera,renderer,rot=0;
+function init3D(){
+ const cv=$('canvas3d');
+ renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+ scene=new THREE.Scene(); scene.background=new THREE.Color(0x000000);
+ camera=new THREE.PerspectiveCamera(50,1,0.1,1000);
+ scene.add(new THREE.AmbientLight(0xffffff,.7));
+ const dl=new THREE.DirectionalLight(0xffffff,.8); dl.position.set(30,50,20); scene.add(dl);
+ const resize=()=>{const w=cv.clientWidth,h=cv.clientHeight||300;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();};
+ window.addEventListener('resize',resize);resize();
+ (function anim(){requestAnimationFrame(anim);rot+=0.004;
+  if(scene._group){scene._group.rotation.y=rot;}
+  renderer.render(scene,camera);})();
+}
+function draw3D(){
+ if(!scene)return;
+ if(scene._group)scene.remove(scene._group);
+ const g=new THREE.Group();
+ const niveles=P.model.niveles&&P.model.niveles.length?P.model.niveles:[{name:'N1',elev:0}];
+ const area=(P.model.areaTotal||300)/Math.max(1,niveles.length);
+ const lado=Math.max(4,Math.sqrt(area));
+ const alto=2.8;
+ niveles.forEach((n)=>{
+  const bajo=n.elev<-0.5;
+  const geo=new THREE.BoxGeometry(lado,alto*0.96,lado);
+  const mat=new THREE.MeshLambertMaterial({color:bajo?0x2a3548:0x9c6bff,transparent:true,opacity:bajo?0.55:0.82});
+  const box=new THREE.Mesh(geo,mat); box.position.y=n.elev+alto/2; g.add(box);
+  const edges=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:bajo?0x8b97aa:0xf4b942}));
+  edges.position.copy(box.position); g.add(edges);
+ });
+ const plano=new THREE.Mesh(new THREE.PlaneGeometry(lado*3,lado*3),new THREE.MeshBasicMaterial({color:0x11161e}));
+ plano.rotation.x=-Math.PI/2; plano.position.y=-0.02; g.add(plano);
+ const grid=new THREE.GridHelper(lado*3,12,0x2a3548,0x1a2230); g.add(grid);
+ scene._group=g; scene.add(g);
+ const hMax=Math.max(...niveles.map(n=>n.elev))+alto, hMin=Math.min(0,...niveles.map(n=>n.elev));
+ camera.position.set(lado*1.9,(hMax-hMin)*0.9+lado*0.7,lado*1.9);
+ camera.lookAt(0,(hMax+hMin)/2,0);
+}
+init3D();
+
+/* ============ APLICAR MODELO → PÓLIZAS ============ */
+$('btn-apply-model').onclick=()=>{
+ const m=P.model, t=P.poliza.trc, d=P.poliza.decenal;
+ const dir=[m.direccion,m.ciudad].filter(Boolean).join(', ');
+ if(dir)t.direccion=dir;
+ if(dir)d.localizacion='Valle del Cauca / '+(m.ciudad||'Cali')+' / '+(m.direccion||'');
+ if(m.numUnidades)d.numViviendas=m.numUnidades;
+ if(m.proyecto&&!d.descripcionObra)d.descripcionObra=`${m.proyecto}: ${m.plantasSobre||'?'} plantas sobre rasante${m.sotanos?` + ${m.sotanos} sótano(s)`:''}, ${m.areaTotal||'?'} m² construidos.`;
+ const tot=(P.presupuesto.totalDirecto||0)+(P.presupuesto.totalIndirecto||0);
+ if(tot)t.limiteAsegurado=tot;
+ const acts=P.cronograma.actividades;
+ if(acts.length){
+  const ini=acts.reduce((a,x)=>a<x.inicio?a:x.inicio,acts[0].inicio);
+  const fin=acts.reduce((a,x)=>{const f=finAct(x);return a>f?a:f;},finAct(acts[0]));
+  d.fechaInicio=ini; d.fechaFin=fin;
+  t.vigenciaMeses=Math.max(1,Math.round((new Date(fin)-new Date(ini))/(30.44*864e5)));
+ }
+ bindAll();
+ document.querySelectorAll('[data-p="poliza.trc.direccion"],[data-p="poliza.decenal.localizacion"],[data-p="poliza.trc.limiteAsegurado"],[data-p="poliza.decenal.fechaInicio"],[data-p="poliza.decenal.fechaFin"],[data-p="poliza.trc.vigenciaMeses"],[data-p="poliza.decenal.numViviendas"],[data-p="poliza.decenal.descripcionObra"]').forEach(el=>el.classList.add('auto'));
+ autosave();
+ flash('Datos del modelo, presupuesto y cronograma aplicados a los formularios (borde azul = autocompletado)');
+};
+
+/* ================= PRESUPUESTO ================= */
+function renderApuInfo(){
+ $('apu-info').textContent=P.presupuesto.apus.length?`${P.presupuesto.apus.length} APUs cargados`:'Sin base APU';
+}
+$('file-apu').onchange=e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const r=new FileReader();
+ r.onload=()=>{
+  try{
+   const wb=XLSX.read(r.result,{type:'binary'});
+   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
+   const apus=[];
+   for(let i=1;i<rows.length;i++){
+    const [codigo,descripcion,unidad,valor]=rows[i]||[];
+    if(codigo&&valor!==undefined&&!isNaN(parseFloat(valor)))apus.push({codigo:String(codigo),descripcion:String(descripcion||''),unidad:String(unidad||''),valor:parseFloat(valor)});
+   }
+   if(!apus.length)throw new Error('sin filas válidas (se espera Código|Descripción|Unidad|Valor)');
+   P.presupuesto.apus=apus; renderApuInfo(); renderItems(); autosave();
+   flash(apus.length+' APUs importados');
+  }catch(err){flash('Error importando APU: '+err.message);}
+ };
+ r.readAsBinaryString(f); e.target.value='';
+};
+
+const AUTO_APU={'Muros':'MAM-01','Losas':'EST-03','Columnas':'EST-01','Vigas':'EST-02','Puertas':'CAR-01','Ventanas':'VEN-01','Cubiertas':'CUB-01','Cimentación':'CIM-02','Aparatos MEP':'APA-01','Redes MEP':'HID-01'};
+
+$('btn-items-modelo').onclick=()=>{
+ const c=P.model.cantidades||{};
+ if(!Object.keys(c).length)return flash('Primero carga un modelo en la pestaña Modelo 3D');
+ for(const [cat,qty] of Object.entries(c)){
+  if(cat==='Espacios')continue;
+  if(P.presupuesto.items.some(it=>it.desc===cat))continue;
+  const apu=P.presupuesto.apus.find(a=>a.codigo===AUTO_APU[cat]);
+  P.presupuesto.items.push({desc:cat,unidad:apu?apu.unidad:'un',qty:qty,apu:apu?apu.codigo:'',valor:apu?apu.valor:0});
+ }
+ renderItems(); autosave();
+ flash('Ítems generados desde el modelo — ajusta cantidades reales (el modelo da conteos, no m²/m³ exactos)');
+};
+$('btn-item-add').onclick=()=>{P.presupuesto.items.push({desc:'',unidad:'un',qty:1,apu:'',valor:0});renderItems();autosave();};
+
+function itemTotal(it){return (parseFloat(it.qty)||0)*(parseFloat(it.valor)||0);}
+function renderItems(){
+ const tb=$('tbl-items').querySelector('tbody'); tb.innerHTML='';
+ const opts='<option value="">— manual —</option>'+P.presupuesto.apus.map(a=>`<option value="${a.codigo}">${a.codigo} · ${a.descripcion.slice(0,38)} (${a.unidad}) ${fmt(a.valor)}</option>`).join('');
+ P.presupuesto.items.forEach((it,i)=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><input value="${it.desc||''}"></td><td><input value="${it.unidad||''}" style="width:52px"></td>
+   <td><input class="num" type="number" value="${it.qty??''}" style="width:76px"></td>
+   <td><select>${opts}</select></td>
+   <td><input class="num" type="number" value="${it.valor??''}" ${it.apu?'disabled':''}></td>
+   <td style="text-align:right;color:var(--accent)">${fmt(itemTotal(it))}</td>
+   <td class="del">✕</td>`;
+  const [iDesc,iUnd,iQty,sApu,iVal]=[...tr.querySelectorAll('input,select')];
+  sApu.value=it.apu||'';
+  iDesc.oninput=()=>{it.desc=iDesc.value;autosave();};
+  iUnd.oninput=()=>{it.unidad=iUnd.value;autosave();};
+  iQty.oninput=()=>{it.qty=parseFloat(iQty.value)||0;refreshTotals(tr,it);autosave();};
+  iVal.oninput=()=>{it.valor=parseFloat(iVal.value)||0;refreshTotals(tr,it);autosave();};
+  sApu.onchange=()=>{
+   it.apu=sApu.value;
+   const a=P.presupuesto.apus.find(x=>x.codigo===it.apu);
+   if(a){it.valor=a.valor;it.unidad=a.unidad;if(!it.desc)it.desc=a.descripcion;iVal.value=a.valor;iVal.disabled=true;iUnd.value=a.unidad;if(!iDesc.value)iDesc.value=a.descripcion;}
+   else iVal.disabled=false;
+   refreshTotals(tr,it);autosave();
+  };
+  tr.querySelector('.del').onclick=()=>{P.presupuesto.items.splice(i,1);renderItems();autosave();};
+  tb.appendChild(tr);
+ });
+ renderInd(); renderPresStats();
+}
+function refreshTotals(tr,it){tr.children[5].textContent=fmt(itemTotal(it));renderPresStats();}
+
+function renderInd(){
+ const tb=$('tbl-ind').querySelector('tbody'); tb.innerHTML='';
+ P.presupuesto.indirectos.forEach(ind=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${ind.capitulo}</td><td><input class="num" type="number" value="${ind.valor||''}"></td>`;
+  tr.querySelector('input').oninput=e=>{ind.valor=parseFloat(e.target.value)||0;renderPresStats();autosave();};
+  tb.appendChild(tr);
+ });
+}
+function renderPresStats(){
+ const dir=P.presupuesto.items.reduce((a,it)=>a+itemTotal(it),0);
+ const ind=P.presupuesto.indirectos.reduce((a,x)=>a+(x.valor||0),0);
+ P.presupuesto.totalDirecto=dir; P.presupuesto.totalIndirecto=ind;
+ $('pres-stats').innerHTML=`
+  <div class="stat"><span class="lbl">Costo directo</span><span class="val">${fmt(dir)}</span></div>
+  <div class="stat"><span class="lbl">Costos indirectos</span><span class="val viol">${fmt(ind)}</span></div>
+  <div class="stat"><span class="lbl">Total (suma asegurada)</span><span class="val ok">${fmt(dir+ind)}</span></div>
+  <div class="stat"><span class="lbl">Capítulos indirectos con valor</span><span class="val new">${P.presupuesto.indirectos.filter(x=>x.valor>0).length}/13</span></div>`;
+}
+$('btn-pres-csv').onclick=()=>{
+ let csv='Tipo,Descripción,Unidad,Cantidad,Vr Unitario,Total\n';
+ P.presupuesto.items.forEach(it=>{csv+=`Directo,"${it.desc}",${it.unidad},${it.qty},${it.valor},${itemTotal(it)}\n`;});
+ P.presupuesto.indirectos.forEach(x=>{csv+=`Indirecto,"${x.capitulo}",gl,1,${x.valor||0},${x.valor||0}\n`;});
+ csv+=`,,,,TOTAL,${P.presupuesto.totalDirecto+P.presupuesto.totalIndirecto}\n`;
+ download(csv,P.id+'_presupuesto.csv','text/csv');
+};
+$('btn-pres-xlsx').onclick=()=>{
+ const rows=[['Tipo','Descripción','Unidad','Cantidad','Vr Unitario','Total']];
+ P.presupuesto.items.forEach(it=>rows.push(['Directo',it.desc,it.unidad,it.qty,it.valor,itemTotal(it)]));
+ P.presupuesto.indirectos.forEach(x=>rows.push(['Indirecto',x.capitulo,'gl',1,x.valor||0,x.valor||0]));
+ rows.push(['','','','','TOTAL',P.presupuesto.totalDirecto+P.presupuesto.totalIndirecto]);
+ const wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Presupuesto');
+ XLSX.writeFile(wb,P.id+'_presupuesto.xlsx');
+};
+
+/* ================= CRONOGRAMA ================= */
+const addD=(iso,d)=>{const x=new Date(iso+'T12:00:00');x.setDate(x.getDate()+d);return x.toISOString().slice(0,10);};
+const finAct=a=>addD(a.inicio,Math.max(1,a.dur)-1);
+$('cron-start').value=hoy();
+
+$('btn-cron-gen').onclick=()=>{
+ const start=$('cron-start').value||hoy();
+ const niv=Math.max(1,P.model.plantasSobre||P.model.niveles.filter(n=>n.elev>=-0.5).length||1);
+ const sot=P.model.sotanos||0;
+ const plan=[['Preliminares y campamento',15],['Excavación'+(sot?` y sótanos (${sot})`:'')+' y cimentación',30+sot*20]];
+ for(let i=1;i<=niv;i++)plan.push([`Estructura nivel ${i}`,12]);
+ plan.push(['Mampostería y pañetes',35],['Cubierta',15],['Instalaciones MEP',40],['Acabados y carpinterías',45],['Urbanismo, aseo y entrega',15]);
+ let cur=start; P.cronograma.actividades=[];
+ plan.forEach(([nombre,dur],i)=>{P.cronograma.actividades.push({id:i+1,nombre,inicio:cur,dur});cur=addD(cur,dur);});
+ renderCron(); autosave();
+ flash(`Cronograma generado: ${plan.length} actividades, ${niv} niveles de estructura — edítalo a tu medida`);
+};
+$('btn-cron-add').onclick=()=>{
+ const last=P.cronograma.actividades[P.cronograma.actividades.length-1];
+ P.cronograma.actividades.push({id:P.cronograma.actividades.length+1,nombre:'Nueva actividad',inicio:last?addD(last.inicio,last.dur):($('cron-start').value||hoy()),dur:10});
+ renderCron(); autosave();
+};
+$('btn-cron-csv').onclick=()=>{
+ let csv='Id,Nombre,Fecha inicio,Fecha fin,Duración (días)\n';
+ P.cronograma.actividades.forEach((a,i)=>{csv+=`${i+1},"${a.nombre}",${a.inicio},${finAct(a)},${a.dur}\n`;});
+ download(csv,P.id+'_cronograma.csv','text/csv');
+};
+
+function renderCron(){
+ const tb=$('tbl-cron').querySelector('tbody'); tb.innerHTML='';
+ const right=$('gantt-right'); right.innerHTML='';
+ const acts=P.cronograma.actividades;
+ if(!acts.length){right.innerHTML='<div class="empty">Genera o agrega actividades</div>';return;}
+ const min=acts.reduce((a,x)=>a<x.inicio?a:x.inicio,acts[0].inicio);
+ const max=acts.reduce((a,x)=>{const f=finAct(x);return a>f?a:f;},finAct(acts[0]));
+ const d0=new Date(min+'T12:00:00'), d1=new Date(max+'T12:00:00');
+ const total=Math.max(1,(d1-d0)/864e5+1);
+ const pct=iso=>100*((new Date(iso+'T12:00:00')-d0)/864e5)/total;
+ // meses header
+ const mh=document.createElement('div'); mh.className='g-months';
+ let mcur=new Date(d0.getFullYear(),d0.getMonth(),1);
+ while(mcur<=d1){
+  const lbl=document.createElement('div'); lbl.className='g-month';
+  lbl.style.left=Math.max(0,pct(mcur.toISOString().slice(0,10)))+'%';
+  lbl.textContent=mcur.toLocaleDateString('es-CO',{month:'short',year:'2-digit'}).toUpperCase();
+  mh.appendChild(lbl);
+  mcur=new Date(mcur.getFullYear(),mcur.getMonth()+1,1);
+ }
+ right.appendChild(mh);
+ const h=hoy();
+ if(h>=min&&h<=max){const t=document.createElement('div');t.className='g-today';t.style.left=pct(h)+'%';right.appendChild(t);}
+ acts.forEach((a,i)=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><input value="${a.nombre}"></td><td><input type="date" value="${a.inicio}"></td>
+   <td><input class="num" type="number" min="1" value="${a.dur}" style="width:48px"></td>
+   <td style="color:var(--text-dim)">${finAct(a)}</td><td class="del">✕</td>`;
+  const [iN,iI,iD]=[...tr.querySelectorAll('input')];
+  iN.oninput=()=>{a.nombre=iN.value;autosave();drawBars();};
+  iI.onchange=()=>{a.inicio=iI.value;renderCron();autosave();};
+  iD.oninput=()=>{a.dur=Math.max(1,parseInt(iD.value)||1);renderCron();autosave();};
+  tr.querySelector('.del').onclick=()=>{acts.splice(i,1);renderCron();autosave();};
+  tb.appendChild(tr);
+  const row=document.createElement('div'); row.className='g-row';
+  const bar=document.createElement('div'); bar.className='g-bar';
+  bar.style.left=pct(a.inicio)+'%';
+  bar.style.width=Math.max(1.2,100*a.dur/total)+'%';
+  bar.textContent=a.dur+'d';
+  bar.title=`${a.nombre}: ${a.inicio} → ${finAct(a)} (${a.dur} días)`;
+  row.appendChild(bar); right.appendChild(row);
+ });
+ function drawBars(){}
+}
+
+/* ================= DOCUMENTOS ================= */
+function renderDocs(){
+ const tb=$('tbl-docs').querySelector('tbody'); tb.innerHTML='';
+ P.documentos.forEach(d=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${d.id}. ${d.nombre}</td>
+   <td><select><option value="falta">Falta</option><option value="proceso">En elaboración</option><option value="listo">Listo</option></select></td>
+   <td><input value="${d.archivo||''}" placeholder="nombre de archivo u observación"></td>
+   <td><span class="pill ${d.estado}">${({falta:'FALTA',proceso:'EN PROCESO',listo:'LISTO ✓'})[d.estado]}</span></td>`;
+  const sel=tr.querySelector('select'); sel.value=d.estado;
+  sel.onchange=()=>{d.estado=sel.value;renderDocs();autosave();};
+  tr.querySelector('input').oninput=e=>{d.archivo=e.target.value;autosave();};
+  tb.appendChild(tr);
+ });
+ const listos=P.documentos.filter(d=>d.estado==='listo').length;
+ const pct=Math.round(100*listos/P.documentos.length);
+ $('docs-bar').style.width=pct+'%';
+ $('docs-pct').textContent=pct+'% completo';
+ $('docs-cnt').textContent=`${listos}/${P.documentos.length} listos`;
+ const badge=$('docs-badge');
+ badge.textContent=pct+'%';
+ badge.className='pill '+(pct===100?'listo':pct>0?'proceso':'falta');
+}
+$('btn-val-ind').onclick=()=>{
+ const sin=P.presupuesto.indirectos.filter(x=>!(x.valor>0)).map(x=>x.capitulo);
+ $('val-ind-out').innerHTML=sin.length
+  ?`⚠ Faltan valores en ${sin.length} capítulos de indirectos: <b style="color:var(--accent-2)">${sin.join(' · ')}</b>. La aseguradora exige el desglose completo.`
+  :'<b style="color:var(--ok)">✓ Los 13 capítulos de costos indirectos tienen valor — desglose completo.</b>';
+};
+
+/* ================= ASEGURADORAS ================= */
+function renderAseg(){
+ const tb=$('tbl-aseg').querySelector('tbody'); tb.innerHTML='';
+ P.aseguradoras.forEach(a=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><b>${a.nombre}</b></td><td class="hint">${a.producto}</td>
+   <td><a href="${a.url}" target="_blank" rel="noopener" style="color:var(--accent-3)">abrir ↗</a></td>
+   <td><select><option value="pendiente">Pendiente</option><option value="contactada">Contactada</option><option value="cotizada">Cotización recibida</option><option value="no-ofrece">No ofrece</option></select></td>
+   <td><input class="num" type="number" value="${a.prima||''}"></td>
+   <td><input value="${a.notas||''}"></td>`;
+  const sel=tr.querySelector('select'); sel.value=a.estado;
+  sel.onchange=()=>{a.estado=sel.value;autosave();};
+  const [iP,iN]=[...tr.querySelectorAll('input')];
+  iP.oninput=()=>{a.prima=iP.value;autosave();};
+  iN.oninput=()=>{a.notas=iN.value;autosave();};
+  tb.appendChild(tr);
+ });
+}
+function resumenRiesgo(){
+ const m=P.model,t=P.poliza.trc,tot=(P.presupuesto.totalDirecto||0)+(P.presupuesto.totalIndirecto||0);
+ return `SOLICITUD DE COTIZACIÓN — SEGURO DE CONSTRUCCIÓN
+Proyecto: ${m.proyecto||P.nombre}
+Tomador: ${t.tomador||P.poliza.decenal.tomador||'[PENDIENTE]'} · NIT: ${t.nit||P.poliza.decenal.tomadorNit||'[PENDIENTE]'}
+Ubicación: ${t.direccion||[m.direccion,m.ciudad].filter(Boolean).join(', ')||'[PENDIENTE]'}
+Obra: ${m.plantasSobre||'?'} plantas + ${m.sotanos||0} sótanos · ${m.areaTotal?m.areaTotal.toLocaleString('es-CO')+' m²':'área por definir'}
+Presupuesto total: ${tot?fmt(tot):'[PENDIENTE]'} (directo ${fmt(P.presupuesto.totalDirecto)} + indirecto ${fmt(P.presupuesto.totalIndirecto)})
+Vigencia estimada: ${t.vigenciaMeses||'?'} meses (${P.poliza.decenal.fechaInicio||'?'} → ${P.poliza.decenal.fechaFin||'?'})
+Contacto: ${'baronajuandavid@gmail.com'}`;
+}
+$('btn-copy-resumen').onclick=async()=>{
+ try{await navigator.clipboard.writeText(resumenRiesgo());flash('Resumen copiado al portapapeles — pégalo en el formulario de la aseguradora');}
+ catch(e){flash('No se pudo copiar: '+e.message);}
+};
+
+/* ================= CORREO ================= */
+function docsTablaTexto(){
+ return P.documentos.map(d=>` ${d.estado==='listo'?'[✓]':d.estado==='proceso'?'[~]':'[ ]'} ${d.id}. ${d.nombre}${d.archivo?' — '+d.archivo:''}`).join('\n');
+}
+function mailAvance(){
+ const listos=P.documentos.filter(d=>d.estado==='listo').length;
+ return {para:'',asunto:`Avance entregables seguro decenal — ${P.model.proyecto||P.nombre} (${Math.round(100*listos/14)}%)`,
+ cuerpo:`Buen día,
+
+Comparto el estado de avance de los entregables para la cotización del seguro decenal del proyecto ${P.model.proyecto||P.nombre}:
+
+${docsTablaTexto()}
+
+Avance: ${listos}/14 documentos listos.
+
+${resumenRiesgo()}
+
+Quedo atento a comentarios.
+
+Cordial saludo,`};
+}
+function mailSolicitudDecenal(){
+ const d=P.poliza.decenal;
+ return {para:'ingenieria@segurosmundial.com.co',asunto:`Solicitud cotización Seguro Decenal de Daños — ${P.model.proyecto||P.nombre}`,
+ cuerpo:`Buen día,
+
+Solicitamos cotización del Seguro Decenal de Daños (Ley 1796 de 2016) para el siguiente proyecto. Adjuntamos los 14 documentos requeridos, incluido el cuestionario diligenciado.
+
+DATOS PRINCIPALES
+- Tomador: ${d.tomador||'[PENDIENTE]'} · NIT ${d.tomadorNit||'[PENDIENTE]'}
+- Constructor: ${d.constructor||'[PENDIENTE]'}
+- Diseñador estructural: ${d.disenadorEstructural||'[PENDIENTE]'}
+- Revisor de diseño: ${d.revisorDiseno||'[PENDIENTE]'} · Supervisor técnico: ${d.supervisorTecnico||'[PENDIENTE]'}
+- Localización: ${d.localizacion||'[PENDIENTE]'}
+- Tipología: ${d.tipologia} · ${d.tipoVivienda} · ${d.numViviendas||'?'} unidades · Estrato ${d.estrato||'?'}
+- Obra: ${P.model.plantasSobre||'?'} plantas sobre rasante + ${P.model.sotanos||0} sótanos · ${P.model.areaTotal?P.model.areaTotal.toLocaleString('es-CO')+' m² construidos':'[PENDIENTE m²]'}
+- Estructura: vertical ${d.estructuraVertical} / horizontal ${d.estructuraHorizontal} · Cimentación: ${d.cimentacion}
+- Plazo: ${d.fechaInicio||'?'} → ${d.fechaFin||'?'} · Estado de avance: 0% (sin comenzar)
+- Suma asegurada provisional: costo directo ${fmt(P.presupuesto.totalDirecto)} + otros gastos ${fmt(P.presupuesto.totalIndirecto)} = ${fmt(P.presupuesto.totalDirecto+P.presupuesto.totalIndirecto)}
+
+DOCUMENTOS ADJUNTOS
+${docsTablaTexto()}
+
+Quedamos atentos a sus comentarios y a la oferta.
+
+Cordial saludo,`};
+}
+function mailSolicitudTRC(){
+ const t=P.poliza.trc;
+ return {para:'',asunto:`Solicitud cotización póliza Todo Riesgo Construcción — ${P.model.proyecto||P.nombre}`,
+ cuerpo:`Buen día,
+
+Solicitamos cotización de póliza Todo Riesgo Construcción (adecuaciones) con la siguiente información:
+
+1. Tomador/asegurado: ${t.tomador||'[PENDIENTE]'}
+2. NIT: ${t.nit||'[PENDIENTE]'}
+3. Ingresos último año: ${t.ingresosUltimoAno?fmt(t.ingresosUltimoAno):'[PENDIENTE]'}
+4. Proyección ingresos año en curso: ${t.proyeccionIngresos?fmt(t.proyeccionIngresos):'[PENDIENTE]'}
+5. Nómina mensual: ${t.nominaMensual?fmt(t.nominaMensual):'[PENDIENTE]'}
+6. Actividad: ${t.actividad||'[PENDIENTE]'}
+7. Cronograma: se adjunta (${P.cronograma.actividades.length} actividades)
+8. Presupuesto: se adjunta — total ${fmt(P.presupuesto.totalDirecto+P.presupuesto.totalIndirecto)}
+9. Vigencia de la adecuación: ${t.vigenciaMeses||'[PENDIENTE]'} meses
+10. Siniestralidad últimos 5 años: ${t.siniestralidad||'[PENDIENTE]'}
+11. Dirección del riesgo: ${t.direccion||'[PENDIENTE]'}
+12. Límite asegurado: ${t.limiteAsegurado?fmt(t.limiteAsegurado):'[PENDIENTE]'}
+
+Coberturas a considerar: amparo básico todo riesgo, RCE, remoción de escombros, AMIT/HMACC, terremoto, equipos de contratistas.
+
+Quedamos atentos.
+
+Cordial saludo,`};
+}
+function regenMail(){
+ const tipo=$('mail-tipo').value;
+ const docs100=P.documentos.every(d=>d.estado==='listo');
+ const m=tipo==='avance'?mailAvance():tipo==='solicitud-decenal'?mailSolicitudDecenal():mailSolicitudTRC();
+ if($('mail-para').value===''||$('mail-para').dataset.auto==='1'){$('mail-para').value=m.para;$('mail-para').dataset.auto='1';}
+ $('mail-asunto').value=m.asunto;
+ $('mail-cuerpo').value=m.cuerpo;
+ const bloqueado=tipo==='solicitud-decenal'&&!docs100;
+ $('btn-mailto').disabled=bloqueado; $('btn-smtp').disabled=bloqueado||!smtpOK;
+ if(bloqueado)flash('La solicitud decenal se habilita cuando los 14 documentos estén LISTOS — usa mientras tanto el correo de avance');
+}
+$('mail-tipo').onchange=regenMail;
+$('btn-mail-regen').onclick=regenMail;
+$('mail-para').oninput=()=>{$('mail-para').dataset.auto='0';};
+$('btn-mailto').onclick=()=>{
+ const url=`mailto:${encodeURIComponent($('mail-para').value)}?subject=${encodeURIComponent($('mail-asunto').value)}&body=${encodeURIComponent($('mail-cuerpo').value)}`;
+ location.href=url;
+};
+let smtpOK=false;
+fetch('/api/email-status').then(r=>r.json()).then(d=>{
+ smtpOK=d.configurado;
+ $('smtp-status').innerHTML=smtpOK?'<b style="color:var(--ok)">✓ SMTP configurado (config.email.json)</b> — el envío adjuntará los archivos de la carpeta indicada.':'SMTP sin configurar — copia config.email.example.json → config.email.json con tu App Password de Gmail para enviar directo con adjuntos. Mientras tanto usa el botón mailto.';
+ $('btn-smtp').disabled=!smtpOK;
+}).catch(()=>{$('smtp-status').textContent='Servidor sin API (¿abriste el archivo directo?) — usa python server.py';$('btn-smtp').disabled=true;});
+$('btn-smtp').onclick=async()=>{
+ const para=$('mail-para').value.trim();
+ if(!para)return flash('Indica el destinatario');
+ if(!confirm(`¿Enviar el correo a ${para}${P.correo.adjuntosDir?' adjuntando la carpeta '+P.correo.adjuntosDir:''}?`))return;
+ $('btn-smtp').disabled=true;
+ try{
+  const r=await fetch('/api/send-email',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({para,asunto:$('mail-asunto').value,cuerpo:$('mail-cuerpo').value,adjuntosDir:P.correo.adjuntosDir||null})});
+  const d=await r.json();
+  if(d.ok)flash(`Correo enviado ✓ (${d.adjuntos.length} adjuntos${d.omitidos.length?', '+d.omitidos.length+' omitidos por tamaño':''})`,4000);
+  else flash('Error: '+d.error,5000);
+ }catch(e){flash('Error de red: '+e.message);}
+ $('btn-smtp').disabled=false;
+};
+
+/* ================= GUARDAR / EXPORTAR ================= */
+function download(content,name,mime){
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob([content],{type:mime}));
+ a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+$('btn-save').onclick=()=>save(true);
+$('btn-export-json').onclick=()=>download(JSON.stringify(P,null,1),PID+'_cotizador.json','application/json');
+window.addEventListener('beforeunload',()=>save(false));
+
+/* ================= INIT ================= */
+bindAll();
+renderModel();
+renderApuInfo();
+renderItems();
+renderCron();
+renderDocs();
+renderAseg();
+regenMail();
+</script>
+</body>
+</html>
