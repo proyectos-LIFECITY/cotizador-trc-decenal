@@ -1,0 +1,10 @@
+{
+  "name": "cotizador-seguros",
+  "version": "1.0.0",
+  "description": "Cotiza pólizas Todo Riesgo Construcción (TRC/adecuaciones) y Seguro Decenal de Daños. Integra los datos de proyectos LifeCity BIM 5D (repo 50) y hace cotizaciones preliminares en las páginas de aseguradoras colombianas.",
+  "author": {
+    "name": "Juan David Barona",
+    "email": "baronajuandavid@gmail.com"
+  },
+  "keywords": ["seguros", "todo riesgo construccion", "decenal", "cotizador", "lifecity", "colombia"]
+}

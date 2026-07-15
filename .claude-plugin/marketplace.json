@@ -1,0 +1,18 @@
+{
+  "name": "lifecity-seguros",
+  "owner": {
+    "name": "Juan David Barona",
+    "email": "baronajuandavid@gmail.com"
+  },
+  "metadata": {
+    "description": "Marketplace LifeCity: herramientas de cotización de seguros para proyectos de construcción",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "cotizador-seguros",
+      "source": "./cotizador-seguros",
+      "description": "Cotizador de pólizas Todo Riesgo Construcción (TRC) y Seguro Decenal de Daños para proyectos LifeCity BIM 5D, con cotización preliminar en aseguradoras colombianas"
+    }
+  ]
+}

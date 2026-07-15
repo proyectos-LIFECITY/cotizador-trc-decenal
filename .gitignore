@@ -1,0 +1,5 @@
+webapp/config.email.json
+webapp/proyectos/*.json
+node_modules/
+__pycache__/
+.claude/settings.local.json
