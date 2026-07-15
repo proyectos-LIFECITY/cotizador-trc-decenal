@@ -931,7 +931,7 @@ fetch('/api/email-status').then(r=>r.json()).then(d=>{
  smtpOK=d.configurado;
  $('smtp-status').innerHTML=smtpOK?'<b style="color:var(--ok)">✓ SMTP configurado (config.email.json)</b> — el envío adjuntará los archivos de la carpeta indicada.':'SMTP sin configurar — copia config.email.example.json → config.email.json con tu App Password de Gmail para enviar directo con adjuntos. Mientras tanto usa el botón mailto.';
  $('btn-smtp').disabled=!smtpOK;
-}).catch(()=>{$('smtp-status').textContent='Servidor sin API (¿abriste el archivo directo?) — usa python server.py';$('btn-smtp').disabled=true;});
+}).catch(()=>{$('smtp-status').textContent='Versión web estática: el envío SMTP con adjuntos y el guardado en webapp/proyectos/ solo funcionan ejecutando la app local (Cotizador.bat). Aquí usa el botón mailto y "JSON" para respaldar el proyecto.';$('btn-smtp').disabled=true;});
 $('btn-smtp').onclick=async()=>{
  const para=$('mail-para').value.trim();
  if(!para)return flash('Indica el destinatario');
