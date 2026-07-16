@@ -1551,6 +1551,8 @@ renderAseg();
 renderMat();
 regenMail();
 loadApuBase();
+const tabQ=QS.get('tab');
+if(tabQ){const b=document.querySelector(`.tabbtn[data-tab="${tabQ}"]`);if(b)b.click();}
 </script>
 </body>
 </html>
