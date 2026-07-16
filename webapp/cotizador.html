@@ -454,7 +454,7 @@ function defaults(nombre){return{
  actividadesIfc:[],
  preciosProveedores:{},
  materiales:[],
- config:{cfUrl:localStorage.getItem('cotizador_cf_url')||''},
+ config:{cfUrl:localStorage.getItem('cotizador_cf_url')||'https://apu-gobernacion.proyectos-f96.workers.dev'},
  cronograma:{actividades:[]},
  documentos:DOCS14.map((d,i)=>({id:i+1,nombre:d,estado:'falta',archivo:''})),
  aseguradoras:ASEG.map(a=>({...a,estado:'pendiente',prima:'',notas:''})),
@@ -474,6 +474,7 @@ function loadP(){
  P.preciosProveedores=saved.preciosProveedores||{};
  P.materiales=saved.materiales||[];
  P.config={...d.config,...(saved.config||{})};
+ if(!P.config.cfUrl)P.config.cfUrl=d.config.cfUrl;
  P.cronograma={...d.cronograma,...(saved.cronograma||{})};
  P.documentos=(saved.documentos&&saved.documentos.length===14)?saved.documentos:d.documentos;
  P.aseguradoras=(saved.aseguradoras&&saved.aseguradoras.length)?saved.aseguradoras:d.aseguradoras;
