@@ -1,0 +1,26 @@
+----------------------------------------
+Exception occurred during processing of request from ('::1', 61313, 0, 0)
+Traceback (most recent call last):
+  File "C:\Users\Juan\AppData\Local\Programs\Python\Python312\Lib\socketserver.py", line 697, in process_request_thread
+    self.finish_request(request, client_address)
+  File "C:\Users\Juan\AppData\Local\Programs\Python\Python312\Lib\socketserver.py", line 362, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "G:\Mi unidad\6. REPOS\52. COTIZADOR TO RIESGO Y DECENAL\webapp\server.py", line 75, in __init__
+    super().__init__(*a, directory=ROOT, **kw)
+  File "C:\Users\Juan\AppData\Local\Programs\Python\Python312\Lib\http\server.py", line 672, in __init__
+    super().__init__(*args, **kwargs)
+  File "C:\Users\Juan\AppData\Local\Programs\Python\Python312\Lib\socketserver.py", line 766, in __init__
+    self.handle()
+  File "C:\Users\Juan\AppData\Local\Programs\Python\Python312\Lib\http\server.py", line 436, in handle
+    self.handle_one_request()
+  File "C:\Users\Juan\AppData\Local\Programs\Python\Python312\Lib\http\server.py", line 424, in handle_one_request
+    method()
+  File "G:\Mi unidad\6. REPOS\52. COTIZADOR TO RIESGO Y DECENAL\webapp\server.py", line 107, in do_POST
+    return self._json(200, {"ok": True, "ruta": ruta})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\Mi unidad\6. REPOS\52. COTIZADOR TO RIESGO Y DECENAL\webapp\server.py", line 87, in _json
+    self.wfile.write(cuerpo)
+  File "C:\Users\Juan\AppData\Local\Programs\Python\Python312\Lib\socketserver.py", line 845, in write
+    self._sock.sendall(b)
+ConnectionAbortedError: [WinError 10053] Se ha anulado una conexión establecida por el software en su equipo host
+----------------------------------------

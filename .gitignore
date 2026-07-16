@@ -3,3 +3,7 @@ webapp/proyectos/*.json
 node_modules/
 __pycache__/
 .claude/settings.local.json
+webapp/ejemplos/apus_gobernacion.json
+cloudflare/seed.sql
+cloudflare/node_modules/
+.wrangler/

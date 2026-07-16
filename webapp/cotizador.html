@@ -77,6 +77,17 @@
   .g-bar{position:absolute;top:8px;height:16px;background:linear-gradient(90deg,var(--viol),#7a4fe0);border:1px solid var(--viol);border-radius:3px;font-size:8px;color:#fff;display:flex;align-items:center;padding:0 5px;overflow:hidden;white-space:nowrap}
   .g-today{position:absolute;top:0;bottom:0;width:1px;background:var(--accent-2);z-index:2}
   .flash{position:fixed;top:52px;left:50%;transform:translateX(-50%);background:rgba(10,13,18,.96);border:1px solid var(--viol);color:var(--text);padding:9px 16px;font-size:11px;z-index:200;border-radius:6px;max-width:80%;display:none}
+  /* MODAL */
+  .modal{position:fixed;inset:0;background:rgba(5,8,13,.82);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:900}
+  .modal.on{display:flex}
+  .modal .box2{background:var(--bg-1);border:1px solid var(--line);width:min(860px,94vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .modal .mh{display:flex;justify-content:space-between;align-items:center;padding:13px 16px;border-bottom:1px solid var(--line)}
+  .modal .mh h3{font-family:var(--display);font-size:14px;font-weight:600}
+  .modal .mb{padding:14px 16px;overflow:auto}
+  .modal .x{background:var(--bg-2);border:1px solid var(--line);color:var(--text-dim);cursor:pointer;padding:5px 9px;font-size:13px}
+  .inp{background:var(--bg-0);border:1px solid var(--line);color:var(--text);padding:8px;font-family:var(--mono);font-size:12px;width:100%}
+  td.best{color:var(--ok);font-weight:600}
+  .apu-link{color:var(--accent-3);cursor:pointer;text-decoration:underline dotted}
   ::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-track{background:var(--bg-0)}::-webkit-scrollbar-thumb{background:var(--line)}
 </style>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap">
@@ -89,6 +100,7 @@
   <button class="tabbtn" data-tab="poliza"><span class="ic">§</span> Datos póliza</button>
   <button class="tabbtn" data-tab="presupuesto"><span class="ic">$</span> Presupuesto</button>
   <button class="tabbtn" data-tab="cronograma"><span class="ic">▦</span> Cronograma</button>
+  <button class="tabbtn" data-tab="materiales"><span class="ic">▤</span> Materiales</button>
   <button class="tabbtn" data-tab="documentos"><span class="ic">✓</span> Documentos <span id="docs-badge" class="pill falta">0%</span></button>
   <button class="tabbtn" data-tab="aseguradoras"><span class="ic">⛨</span> Aseguradoras</button>
   <button class="tabbtn" data-tab="correo"><span class="ic">✉</span> Correo</button>
@@ -97,6 +109,15 @@
   <button class="btn sm primary" id="btn-save"><span class="ic">💾</span> Guardar</button>
 </div>
 <div class="flash" id="flash"></div>
+<div class="modal" id="modal-apu">
+  <div class="box2">
+    <div class="mh"><h3>Buscar APU — base Gobernación</h3><button class="x" id="apu-modal-x">✕</button></div>
+    <div class="mb">
+      <input class="inp" id="apu-search" placeholder="Escribe parte del nombre del APU (ej: LOSA, COLUMNA, MURO)…" autocomplete="off">
+      <div style="overflow:auto;max-height:52vh;margin-top:10px"><table class="tbl" id="tbl-apu-res"><tbody></tbody></table></div>
+    </div>
+  </div>
+</div>
 <main>
 
 <!-- ============ MODELO 3D ============ -->
@@ -210,7 +231,24 @@
 <section class="panel" id="panel-presupuesto">
   <div class="grid4" id="pres-stats"></div>
   <div class="box">
-    <h3><span class="dot"></span> Base de datos APU</h3>
+    <h3><span class="dot"></span> Actividades del IFC (parámetros PSI) × Base APU Gobernación</h3>
+    <div class="btnrow">
+      <span class="hint" id="apubase-info" style="align-self:center">Base APU: cargando…</span>
+      <button class="btn sm" id="btn-cf-cfg"><span class="ic">☁</span> URL Cloudflare</button>
+      <button class="btn sm" id="btn-actifc-add"><span class="ic">+</span> Actividad manual</button>
+    </div>
+    <div style="overflow-x:auto"><table class="tbl" id="tbl-actifc">
+      <thead><tr><th>WBS</th><th style="width:22%">Actividad (IFC)</th><th>Tipos Revit</th><th style="width:70px">Cant.</th><th>Und</th><th style="width:24%">APU enlazado</th><th>Vr. unitario</th><th>Total</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="btnrow">
+      <button class="btn ok" id="btn-xls-general"><span class="ic">⇓</span> Excel presupuesto general</button>
+      <button class="btn ok" id="btn-xls-detallado"><span class="ic">⇓</span> Excel detallado (insumos + proveedor más económico)</button>
+    </div>
+    <p class="hint">Las actividades vienen de los parámetros <b>PSI_ActivityID / PSI_ActivityName / PSI_Start / PSI_Finish / PSI_WBS</b> del IFC (súbelo en Modelo 3D). Enlaza cada actividad a un APU buscándolo por nombre. La cantidad es editable: el IFC da el conteo de elementos; ajústala a la unidad del APU (m², m³, ml…).</p>
+  </div>
+  <div class="box">
+    <h3><span class="dot"></span> Base de datos APU (alternativa por Excel)</h3>
     <div class="btnrow">
       <label class="btn primary" for="file-apu"><span class="ic">⇪</span> Importar APU (Excel/CSV: Código | Descripción | Unidad | Valor)</label>
       <input type="file" id="file-apu" accept=".xlsx,.xls,.csv" style="display:none">
@@ -259,6 +297,55 @@
       <div id="gantt-right"></div>
     </div>
     <p class="hint">El plazo total alimenta la <b>vigencia</b> de la TRC y el <b>plazo de ejecución</b> del decenal (fechas inicio/fin previstas). Exporta el CSV y ábrelo en Excel/Project si necesitas ajustarlo allá.</p>
+  </div>
+</section>
+
+<!-- ============ MATERIALES ============ -->
+<section class="panel" id="panel-materiales">
+  <div class="grid4" id="mat-stats"></div>
+  <div class="box">
+    <h3><span class="dot"></span> Materiales totales del proyecto (agregados de todas las actividades)</h3>
+    <div class="btnrow">
+      <button class="btn primary" id="btn-mat-calc"><span class="ic">Σ</span> Calcular materiales totales</button>
+      <div class="ctl" style="max-width:220px"><label>Filtro</label>
+        <select id="mat-filtro"><option value="MAT">Solo materiales</option><option value="">Materiales + MO + equipos</option><option value="ESP">Por especialidad…</option></select>
+      </div>
+      <div class="ctl" style="max-width:220px;display:none" id="mat-esp-wrap"><label>Especialidad</label>
+        <select id="mat-esp"><option>ACERO</option><option>CONCRETO</option><option>LADRILLO Y MAMPOSTERÍA</option><option>HERRAMIENTA MENOR</option><option>OTROS</option></select>
+      </div>
+      <button class="btn" id="btn-mat-xls" style="align-self:end"><span class="ic">⇓</span> Excel materiales</button>
+    </div>
+    <div style="overflow-x:auto"><table class="tbl" id="tbl-mat">
+      <thead><tr><th>Código</th><th style="width:26%">Insumo</th><th>Esp.</th><th>Und</th><th>Cant. total</th><th>Vr. base</th><th>Prov. 1</th><th>Prov. 2</th><th>Prov. 3</th><th>Más económico</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="hint">Suma <b>cantidad de la actividad × rendimiento del insumo × (1+desperdicio)</b> de todos los APUs enlazados en Presupuesto; los insumos repetidos entre actividades se consolidan. La herramienta menor (MQ0301) se incluye como especialidad propia.</p>
+  </div>
+  <div class="cols">
+    <div class="box">
+      <h3><span class="dot"></span> 1 · Mandar a cotizar a distribuidores especializados</h3>
+      <p class="hint">Genera un borrador de correo por especialidad con la lista y cantidades totales del proyecto. Revísalo en la pestaña Correo y envíalo al distribuidor.</p>
+      <div class="btnrow" id="btn-esp-row">
+        <button class="btn viol btn-esp" data-esp="ACERO"><span class="ic">✉</span> Acero</button>
+        <button class="btn viol btn-esp" data-esp="CONCRETO"><span class="ic">✉</span> Concreto</button>
+        <button class="btn viol btn-esp" data-esp="LADRILLO Y MAMPOSTERÍA"><span class="ic">✉</span> Ladrillo</button>
+        <button class="btn viol btn-esp" data-esp="HERRAMIENTA MENOR"><span class="ic">✉</span> Herramienta menor</button>
+        <button class="btn viol btn-esp" data-esp="OTROS"><span class="ic">✉</span> Otros</button>
+      </div>
+    </div>
+    <div class="box">
+      <h3><span class="dot"></span> 2 · Subir cotización recibida (hasta 3 proveedores)</h3>
+      <div class="grid2">
+        <div class="ctl"><label>Nombre del proveedor</label><input id="quote-prov" placeholder="Ej: Ferretería XYZ"></div>
+        <div class="ctl"><label>Archivo (Excel/CSV con nombre y precio)</label>
+          <label class="btn" for="file-quote"><span class="ic">⇪</span> Subir cotización</label>
+          <input type="file" id="file-quote" accept=".xlsx,.xls,.csv" style="display:none">
+        </div>
+      </div>
+      <p class="hint" id="quote-out">La app detecta las columnas de nombre/código y precio, empareja los insumos por nombre y llena la columna del proveedor. Con 2-3 cotizaciones se resalta el más económico por material.</p>
+      <button class="btn ok" id="btn-cf-push"><span class="ic">☁</span> Actualizar precios en Cloudflare</button>
+      <p class="hint" id="cf-push-out"></p>
+    </div>
   </div>
 </section>
 
@@ -364,6 +451,10 @@ function defaults(nombre){return{
   trc:{tomador:'',nit:'',ingresosUltimoAno:null,proyeccionIngresos:null,nominaMensual:null,actividad:'',vigenciaMeses:null,siniestralidad:'Sin siniestralidad en los últimos 5 años',direccion:'',limiteAsegurado:null},
   decenal:{tomador:'',tomadorNit:'',intermediario:'',enajenador:'',constructor:'',geotecnia:'',disenadorEstructural:'',revisorDiseno:'',supervisorTecnico:'',defectosDisenador:'No',defectosConstructor:'No',descripcionObra:'',localizacion:'',tipologia:'Viviendas en bloque',tipoVivienda:'Tradicional',numViviendas:null,estrato:null,tipoZona:'Urbana urbanización media',tipoContrato:'Privado',fechaInicio:'',fechaFin:'',estructuraVertical:'Hormigón armado',estructuraHorizontal:'Hormigón armado',cimentacion:'Zapatas',fachadas:'Revestida',cubiertas:'Plana no transitable',informeGeotecnico:'Sí',lote:'Horizontal',financiacion:'Capital propio',entidadFinanciera:''}},
  presupuesto:{apus:[],items:[],indirectos:INDIRECTOS.map(c=>({capitulo:c,valor:0})),totalDirecto:0,totalIndirecto:0},
+ actividadesIfc:[],
+ preciosProveedores:{},
+ materiales:[],
+ config:{cfUrl:localStorage.getItem('cotizador_cf_url')||''},
  cronograma:{actividades:[]},
  documentos:DOCS14.map((d,i)=>({id:i+1,nombre:d,estado:'falta',archivo:''})),
  aseguradoras:ASEG.map(a=>({...a,estado:'pendiente',prima:'',notas:''})),
@@ -379,6 +470,10 @@ function loadP(){
  P.poliza={...d.poliza,...(saved.poliza||{}),trc:{...d.poliza.trc,...((saved.poliza||{}).trc||{})},decenal:{...d.poliza.decenal,...((saved.poliza||{}).decenal||{})}};
  P.presupuesto={...d.presupuesto,...(saved.presupuesto||{})};
  if(!P.presupuesto.indirectos||P.presupuesto.indirectos.length!==13)P.presupuesto.indirectos=d.presupuesto.indirectos;
+ P.actividadesIfc=saved.actividadesIfc||[];
+ P.preciosProveedores=saved.preciosProveedores||{};
+ P.materiales=saved.materiales||[];
+ P.config={...d.config,...(saved.config||{})};
  P.cronograma={...d.cronograma,...(saved.cronograma||{})};
  P.documentos=(saved.documentos&&saved.documentos.length===14)?saved.documentos:d.documentos;
  P.aseguradoras=(saved.aseguradoras&&saved.aseguradoras.length)?saved.aseguradoras:d.aseguradoras;
@@ -423,7 +518,8 @@ document.querySelectorAll('.tabbtn[data-tab]').forEach(b=>b.onclick=()=>{
  document.querySelectorAll('.tabbtn[data-tab]').forEach(x=>x.classList.toggle('on',x===b));
  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id==='panel-'+b.dataset.tab));
  if(b.dataset.tab==='cronograma')renderCron();
- if(b.dataset.tab==='correo')regenMail();
+ if(b.dataset.tab==='correo'){if(mailCustom)mailCustom=false;else regenMail();}
+ if(b.dataset.tab==='materiales')renderMat();
 });
 
 /* ================= MODELO: IFC ================= */
@@ -460,12 +556,81 @@ function parseIfcText(text){
  return {counts,niveles,areaTotal:Math.round(areaTotal)||null,proyecto:pm?pm[1]:''};
 }
 
+/* ---- Actividades desde parámetros PSI_* (Revit → IFC property sets) ---- */
+function normFecha(v){
+ if(v===null||v===undefined)return'';
+ const s=String(v).trim();
+ let m=s.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+ if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+ m=s.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+ if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+ return '';
+}
+const ELEM_RE=/^(WALL|WALLSTANDARDCASE|SLAB|COLUMN|BEAM|DOOR|WINDOW|STAIR|STAIRFLIGHT|ROOF|FOOTING|PILE|COVERING|MEMBER|PLATE|RAILING|CURTAINWALL|BUILDINGELEMENTPROXY|FLOWTERMINAL|FLOWSEGMENT|PIPESEGMENT|DUCTSEGMENT|FLOWFITTING|RAMP|ELEMENTASSEMBLY)$/;
+function parsePsiActivities(text){
+ const ents={};
+ const re=/#(\d+)\s*=\s*IFC([A-Z0-9]+)\s*\(([\s\S]*?)\)\s*;/g;
+ let m;
+ while((m=re.exec(text))){ents[m[1]]={t:m[2],p:m[3]};}
+ const getStrs=p=>[...p.matchAll(/'((?:[^']|'')*)'/g)].map(x=>x[1].replace(/''/g,"'"));
+ // 1) propiedades PSI_*
+ const propVal={};
+ for(const id in ents){
+  const e=ents[id];
+  if(e.t!=='PROPERTYSINGLEVALUE')continue;
+  const strs=getStrs(e.p);
+  if(!strs[0]||!/^PSI_/i.test(strs[0]))continue;
+  let v=null;
+  const mv=e.p.match(/IFC[A-Z]+\s*\(\s*(?:'((?:[^']|'')*)'|([-\d.eE+]+))\s*\)/);
+  if(mv)v=mv[1]!==undefined?mv[1].replace(/''/g,"'"):parseFloat(mv[2]);
+  propVal[id]={k:strs[0],v};
+ }
+ if(!Object.keys(propVal).length)return [];
+ // 2) property sets que contienen props PSI
+ const psets={};
+ for(const id in ents){
+  const e=ents[id];
+  if(e.t!=='PROPERTYSET')continue;
+  const refs=[...e.p.matchAll(/#(\d+)/g)].map(x=>x[1]);
+  const props={}; let has=false;
+  for(const r of refs)if(propVal[r]){props[propVal[r].k]=propVal[r].v;has=true;}
+  if(has)psets[id]=props;
+ }
+ // 3) relación pset → elementos
+ const acts={};
+ for(const id in ents){
+  const e=ents[id];
+  if(e.t!=='RELDEFINESBYPROPERTIES')continue;
+  const refs=[...e.p.matchAll(/#(\d+)/g)].map(x=>x[1]);
+  if(refs.length<2)continue;
+  const props=psets[refs[refs.length-1]];
+  if(!props||(props.PSI_ActivityID===undefined&&props.PSI_ActivityName===undefined))continue;
+  const key=String(props.PSI_ActivityID??props.PSI_ActivityName);
+  const a=acts[key]=acts[key]||{aid:key,nombre:String(props.PSI_ActivityName||('Actividad '+key)),
+   inicio:normFecha(props.PSI_Start),fin:normFecha(props.PSI_Finish),
+   pct:parseFloat(props.PSI_PercentComplete??props.PSI_PercentCo??0)||0,
+   wbs:String(props.PSI_WBS??''),tipos:{},qty:0};
+  for(let i=1;i<refs.length-1;i++){
+   const el=ents[refs[i]];
+   if(!el||!ELEM_RE.test(el.t))continue;
+   const strs=getStrs(el.p);
+   let name=(strs[1]||el.t).replace(/:\d+$/,'');
+   a.tipos[name]=(a.tipos[name]||0)+1;
+   a.qty++;
+  }
+  if(a.qty===0)a.qty=1;
+ }
+ return Object.values(acts).sort((x,y)=>String(x.wbs).localeCompare(String(y.wbs),undefined,{numeric:true}));
+}
+
 $('file-ifc').onchange=e=>{
  const f=e.target.files[0]; if(!f)return;
  const r=new FileReader();
  r.onload=()=>{
   try{
-   const d=parseIfcText(r.result);
+   const buf=r.result;
+   const text=new TextDecoder('utf-8').decode(buf);
+   const d=parseIfcText(text);
    const sot=d.niveles.filter(n=>n.elev<-0.5).length;
    const sob=d.niveles.length-sot;
    Object.assign(P.model,{source:'ifc',fileName:f.name,niveles:d.niveles,cantidades:d.counts,
@@ -473,12 +638,82 @@ $('file-ifc').onchange=e=>{
     areaTotal:d.areaTotal||P.model.areaTotal,
     m2Sobre:d.areaTotal&&sot===0?d.areaTotal:P.model.m2Sobre,
     proyecto:P.model.proyecto||d.proyecto});
+   // actividades PSI_* (cronograma 4D exportado desde Revit)
+   const acts=parsePsiActivities(text);
+   if(acts.length){
+    const prev=Object.fromEntries(P.actividadesIfc.map(a=>[a.aid,a]));
+    P.actividadesIfc=acts.map(a=>{
+     const old=prev[a.aid]||{};
+     return {...a,qty:old.qtyManual?old.qty:a.qty,qtyManual:old.qtyManual||false,
+      apuId:old.apuId||null,apuNombre:old.apuNombre||'',apuUnidad:old.apuUnidad||'',apuPrecio:old.apuPrecio||0};
+    });
+    renderActIfc();
+   }
    bindAll();renderModel();autosave();
-   flash(`IFC procesado: ${d.niveles.length} niveles (${sot} sótanos), ${Object.values(d.counts).reduce((a,b)=>a+b,0)} elementos`);
+   flash(`IFC procesado: ${d.niveles.length} niveles (${sot} sótanos), ${Object.values(d.counts).reduce((a,b)=>a+b,0)} elementos${acts.length?`, ${acts.length} actividades PSI ✓`:''}`);
+   loadIfcGeometry(buf); // visor con la geometría real (async)
   }catch(err){flash('Error leyendo IFC: '+err.message);}
  };
- r.readAsText(f); e.target.value='';
+ r.readAsArrayBuffer(f); e.target.value='';
 };
+
+/* ---- Visor: geometría IFC real vía web-ifc (WASM) ---- */
+let ifcGeomOK=false;
+const WEBIFC_CDN='https://cdn.jsdelivr.net/npm/web-ifc@0.0.57/';
+async function loadIfcGeometry(buf){
+ try{
+  flash('Cargando geometría real del IFC en el visor…');
+  const WebIFC=await import('https://cdn.jsdelivr.net/npm/web-ifc@0.0.57/+esm');
+  const api=new WebIFC.IfcAPI();
+  api.SetWasmPath(WEBIFC_CDN,true);
+  await api.Init();
+  const mid=api.OpenModel(new Uint8Array(buf));
+  const group=new THREE.Group();
+  const flat=api.LoadAllGeometry(mid);
+  for(let i=0;i<flat.size();i++){
+   const fm=flat.get(i);
+   for(let j=0;j<fm.geometries.size();j++){
+    const pg=fm.geometries.get(j);
+    const g=api.GetGeometry(mid,pg.geometryExpressID);
+    const verts=api.GetVertexArray(g.GetVertexData(),g.GetVertexDataSize());
+    const idx=api.GetIndexArray(g.GetIndexData(),g.GetIndexDataSize());
+    const n=verts.length/6;
+    const pos=new Float32Array(n*3), nor=new Float32Array(n*3);
+    for(let k=0;k<n;k++){pos[k*3]=verts[k*6];pos[k*3+1]=verts[k*6+1];pos[k*3+2]=verts[k*6+2];
+     nor[k*3]=verts[k*6+3];nor[k*3+1]=verts[k*6+4];nor[k*3+2]=verts[k*6+5];}
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    geo.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+    geo.setIndex(new THREE.BufferAttribute(new Uint32Array(idx),1));
+    const c=pg.color||{x:.6,y:.6,z:.65,w:1};
+    const mesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({
+     color:new THREE.Color(c.x,c.y,c.z),transparent:c.w<1,opacity:Math.max(.25,c.w),side:THREE.DoubleSide}));
+    mesh.applyMatrix4(new THREE.Matrix4().fromArray(pg.flatTransformation));
+    group.add(mesh);
+   }
+  }
+  api.CloseModel(mid);
+  if(!group.children.length)throw new Error('el IFC no trae geometría');
+  group.rotation.x=-Math.PI/2; // IFC Z-arriba → three Y-arriba
+  const wrap=new THREE.Group(); wrap.add(group);
+  let bb=new THREE.Box3().setFromObject(wrap);
+  const ctr=bb.getCenter(new THREE.Vector3());
+  group.position.set(-ctr.x,-bb.min.y,-ctr.z);
+  bb=new THREE.Box3().setFromObject(wrap);
+  const size=bb.getSize(new THREE.Vector3());
+  const grid=new THREE.GridHelper(Math.max(size.x,size.z)*1.6||20,14,0x2a3548,0x1a2230); wrap.add(grid);
+  if(scene._group)scene.remove(scene._group);
+  scene._group=wrap; scene.add(wrap);
+  const dmax=Math.max(size.x,size.y,size.z)||10;
+  camera.position.set(dmax*1.15,dmax*.85,dmax*1.15);
+  camera.lookAt(0,size.y*.4,0);
+  ifcGeomOK=true;
+  flash('Visor: geometría real del IFC cargada ✓');
+ }catch(err){
+  ifcGeomOK=false; draw3D();
+  flash('Visor: no se pudo cargar la geometría real ('+String(err.message||err).slice(0,80)+') — se muestra el esquema por niveles');
+ }
+}
 
 /* ============ MODELO: JSON LifeCity (repo 50) ============ */
 $('file-lifecity').onchange=e=>{
@@ -542,7 +777,7 @@ function init3D(){
   renderer.render(scene,camera);})();
 }
 function draw3D(){
- if(!scene)return;
+ if(!scene||ifcGeomOK)return; // si hay geometría IFC real, no pisarla con el esquema
  if(scene._group)scene.remove(scene._group);
  const g=new THREE.Group();
  const niveles=P.model.niveles&&P.model.niveles.length?P.model.niveles:[{name:'N1',elev:0}];
@@ -671,15 +906,18 @@ function renderInd(){
   tb.appendChild(tr);
  });
 }
+function actIfcTotal(){return P.actividadesIfc.reduce((s,a)=>s+(a.qty||0)*(a.apuPrecio||0),0);}
 function renderPresStats(){
- const dir=P.presupuesto.items.reduce((a,it)=>a+itemTotal(it),0);
+ const dirItems=P.presupuesto.items.reduce((a,it)=>a+itemTotal(it),0);
+ const dirIfc=actIfcTotal();
+ const dir=dirItems+dirIfc;
  const ind=P.presupuesto.indirectos.reduce((a,x)=>a+(x.valor||0),0);
  P.presupuesto.totalDirecto=dir; P.presupuesto.totalIndirecto=ind;
  $('pres-stats').innerHTML=`
-  <div class="stat"><span class="lbl">Costo directo</span><span class="val">${fmt(dir)}</span></div>
+  <div class="stat"><span class="lbl">Directo (IFC×APU + manual)</span><span class="val">${fmt(dir)}</span></div>
   <div class="stat"><span class="lbl">Costos indirectos</span><span class="val viol">${fmt(ind)}</span></div>
   <div class="stat"><span class="lbl">Total (suma asegurada)</span><span class="val ok">${fmt(dir+ind)}</span></div>
-  <div class="stat"><span class="lbl">Capítulos indirectos con valor</span><span class="val new">${P.presupuesto.indirectos.filter(x=>x.valor>0).length}/13</span></div>`;
+  <div class="stat"><span class="lbl">Actividades IFC con APU</span><span class="val new">${P.actividadesIfc.filter(a=>a.apuId).length}/${P.actividadesIfc.length} · ind ${P.presupuesto.indirectos.filter(x=>x.valor>0).length}/13</span></div>`;
 }
 $('btn-pres-csv').onclick=()=>{
  let csv='Tipo,Descripción,Unidad,Cantidad,Vr Unitario,Total\n';
@@ -704,6 +942,18 @@ const finAct=a=>addD(a.inicio,Math.max(1,a.dur)-1);
 $('cron-start').value=hoy();
 
 $('btn-cron-gen').onclick=()=>{
+ // 1ª opción: actividades PSI_* del IFC (fechas reales del cronograma de Revit)
+ if(P.actividadesIfc.length&&P.actividadesIfc.some(a=>a.inicio)){
+  P.cronograma.actividades=P.actividadesIfc.filter(a=>a.inicio).map((a,i)=>({
+   id:i+1,
+   nombre:(a.wbs?a.wbs+' · ':'')+a.nombre,
+   inicio:a.inicio,
+   dur:a.fin?Math.max(1,Math.round((new Date(a.fin)-new Date(a.inicio))/864e5)+1):10
+  }));
+  renderCron();autosave();
+  flash(`Cronograma generado con las fechas PSI del IFC: ${P.cronograma.actividades.length} actividades`);
+  return;
+ }
  const start=$('cron-start').value||hoy();
  const niv=Math.max(1,P.model.plantasSobre||P.model.niveles.filter(n=>n.elev>=-0.5).length||1);
  const sot=P.model.sotanos||0;
@@ -920,7 +1170,7 @@ function regenMail(){
  if(bloqueado)flash('La solicitud decenal se habilita cuando los 14 documentos estén LISTOS — usa mientras tanto el correo de avance');
 }
 $('mail-tipo').onchange=regenMail;
-$('btn-mail-regen').onclick=regenMail;
+$('btn-mail-regen').onclick=()=>{mailCustom=false;regenMail();};
 $('mail-para').oninput=()=>{$('mail-para').dataset.auto='0';};
 $('btn-mailto').onclick=()=>{
  const url=`mailto:${encodeURIComponent($('mail-para').value)}?subject=${encodeURIComponent($('mail-asunto').value)}&body=${encodeURIComponent($('mail-cuerpo').value)}`;
@@ -947,6 +1197,337 @@ $('btn-smtp').onclick=async()=>{
  $('btn-smtp').disabled=false;
 };
 
+/* ================= BASE APU (Cloudflare D1 o JSON local) ================= */
+let APUBASE=null, APUSRC='';
+const cfUrl=()=> (P.config.cfUrl||'').replace(/\/$/,'');
+async function loadApuBase(){
+ if(cfUrl()){
+  try{
+   const r=await fetch(cfUrl()+'/api/apus?limit=1');
+   if(r.ok){APUSRC='cf';$('apubase-info').innerHTML=`Base APU: <b style="color:var(--ok)">Cloudflare D1 ✓</b>`;return;}
+  }catch(e){}
+ }
+ try{
+  const r=await fetch('ejemplos/apus_gobernacion.json');
+  if(!r.ok)throw 0;
+  APUBASE=await r.json();
+  APUBASE.forEach((a,i)=>a.id=i+1);
+  APUSRC='local';
+  $('apubase-info').innerHTML=`Base APU: <b style="color:var(--accent)">local</b> — ${APUBASE.length} actividades Gobernación`;
+ }catch(e){
+  APUSRC='';
+  $('apubase-info').innerHTML='Base APU: <b style="color:var(--accent-2)">no disponible</b> — configura la URL de Cloudflare (botón ☁)';
+ }
+}
+async function searchApus(q){
+ if(!q||q.length<2)return [];
+ if(APUSRC==='cf'){
+  try{const r=await fetch(cfUrl()+'/api/apus?q='+encodeURIComponent(q)+'&limit=60');return await r.json();}catch(e){return [];}
+ }
+ if(APUBASE){
+  const terms=q.toUpperCase().split(/\s+/).filter(Boolean);
+  return APUBASE.filter(a=>terms.every(t=>a.nombre.toUpperCase().includes(t))).slice(0,60)
+   .map(a=>({id:a.id,nombre:a.nombre,unidad:a.unidad,precio_total:a.precio_total}));
+ }
+ return [];
+}
+const APU_INS_CACHE={};
+async function getApuInsumos(apuId){
+ if(APU_INS_CACHE[apuId])return APU_INS_CACHE[apuId];
+ let ins=[];
+ try{
+  if(APUSRC==='cf'){const r=await fetch(cfUrl()+'/api/apu/'+apuId);const d=await r.json();ins=d.insumos||[];}
+  else if(APUBASE){const a=APUBASE.find(x=>x.id==apuId);ins=a?a.insumos:[];}
+ }catch(e){}
+ APU_INS_CACHE[apuId]=ins; return ins;
+}
+$('btn-cf-cfg').onclick=()=>{
+ const url=prompt('URL del Worker de Cloudflare con la base APU\n(ej: https://apu-gobernacion.CUENTA.workers.dev):',P.config.cfUrl||'');
+ if(url===null)return;
+ P.config.cfUrl=url.trim();
+ localStorage.setItem('cotizador_cf_url',P.config.cfUrl);
+ autosave(); loadApuBase();
+};
+
+/* ---- modal buscador de APU ---- */
+let apuPickCb=null, apuT=null;
+function openApuPicker(cb){
+ apuPickCb=cb;
+ $('modal-apu').classList.add('on');
+ $('apu-search').value='';
+ $('tbl-apu-res').querySelector('tbody').innerHTML='<tr><td class="hint" style="font-style:italic">Escribe 2+ letras para buscar en la base…</td></tr>';
+ setTimeout(()=>$('apu-search').focus(),50);
+}
+$('apu-modal-x').onclick=()=>$('modal-apu').classList.remove('on');
+$('modal-apu').onclick=e=>{if(e.target.id==='modal-apu')$('modal-apu').classList.remove('on');};
+$('apu-search').oninput=()=>{clearTimeout(apuT);apuT=setTimeout(async()=>{
+ const res=await searchApus($('apu-search').value.trim());
+ const tb=$('tbl-apu-res').querySelector('tbody');
+ tb.innerHTML=res.length
+  ?res.map((a,i)=>`<tr class="click" data-i="${i}"><td>${a.nombre}</td><td>${a.unidad||''}</td><td style="text-align:right;color:var(--accent)">${fmt(a.precio_total)}</td></tr>`).join('')
+  :'<tr><td class="hint">Sin resultados</td></tr>';
+ tb.querySelectorAll('tr.click').forEach(tr=>tr.onclick=()=>{
+  const a=res[parseInt(tr.dataset.i)];
+  $('modal-apu').classList.remove('on');
+  if(apuPickCb)apuPickCb({id:a.id,nombre:a.nombre,unidad:a.unidad,precio:a.precio_total});
+ });
+},280);};
+
+/* ---- tabla actividades IFC × APU ---- */
+function renderActIfc(){
+ const tb=$('tbl-actifc').querySelector('tbody'); tb.innerHTML='';
+ if(!P.actividadesIfc.length){
+  tb.innerHTML='<tr><td colspan="9" class="hint" style="font-style:italic;padding:12px">Sube un IFC con parámetros PSI_* (Modelo 3D) o agrega actividades manuales.</td></tr>';
+  renderPresStats();return;
+ }
+ P.actividadesIfc.forEach((a,i)=>{
+  const tipos=Object.entries(a.tipos||{}).map(([k,v])=>`${k} (${v})`).join(', ');
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${a.wbs||''}</td>
+   <td>${a.nombre}<div class="hint">${a.inicio||''}${a.fin?' → '+a.fin:''}${a.pct?' · '+a.pct+'%':''}</div></td>
+   <td class="hint" title="${tipos.replace(/"/g,'&quot;')}">${tipos.slice(0,55)||'—'}${tipos.length>55?'…':''}</td>
+   <td><input class="num" type="number" step="any" value="${a.qty??''}" style="width:64px"></td>
+   <td>${a.apuUnidad||'un'}</td>
+   <td><span class="apu-link">${a.apuNombre||'⊕ buscar APU…'}</span></td>
+   <td style="text-align:right">${a.apuPrecio?fmt(a.apuPrecio):'—'}</td>
+   <td style="text-align:right;color:var(--accent)">${fmt((a.qty||0)*(a.apuPrecio||0))}</td>
+   <td class="del">✕</td>`;
+  tr.querySelector('input').oninput=e=>{
+   a.qty=parseFloat(e.target.value)||0;a.qtyManual=true;
+   tr.children[7].textContent=fmt((a.qty||0)*(a.apuPrecio||0));
+   renderPresStats();autosave();
+  };
+  tr.querySelector('.apu-link').onclick=()=>openApuPicker(sel=>{
+   a.apuId=sel.id;a.apuNombre=sel.nombre;a.apuUnidad=sel.unidad;a.apuPrecio=sel.precio;
+   renderActIfc();autosave();
+  });
+  tr.querySelector('.del').onclick=()=>{P.actividadesIfc.splice(i,1);renderActIfc();autosave();};
+  tb.appendChild(tr);
+ });
+ renderPresStats();
+}
+$('btn-actifc-add').onclick=()=>{
+ P.actividadesIfc.push({aid:'man_'+Date.now().toString(36),nombre:'Actividad manual',wbs:'',inicio:'',fin:'',pct:0,tipos:{},qty:1,qtyManual:true,apuId:null,apuNombre:'',apuUnidad:'',apuPrecio:0});
+ renderActIfc();autosave();
+};
+
+/* ================= MATERIALES TOTALES ================= */
+const ESP_KEYS=[
+ ['ACERO',/ACERO|HIERRO|VARILLA|MALLA|ALAMBRE|GRAFIL|PERFIL MET|LAMINA/],
+ ['CONCRETO',/CONCRETO|CEMENTO|MORTERO|ARENA|TRITURADO|GRAVA|GRAVILLA|AGREGADO/],
+ ['LADRILLO Y MAMPOSTERÍA',/LADRILLO|BLOQUE|ADOBE|ARCILLA|TOLETE/],
+ ['HERRAMIENTA MENOR',/HERRAMIENTA|BROCHA|RODILLO|LIJA|DISCO|SEGUETA|ESPATULA/],
+];
+function especialidad(ins){
+ const n=(ins.nombre||'').toUpperCase();
+ if(ins.tipo==='MO')return 'MANO DE OBRA';
+ if(/HERRAMIENTA/.test(n))return 'HERRAMIENTA MENOR';
+ if(ins.tipo==='MQ')return 'EQUIPOS';
+ for(const [esp,re] of ESP_KEYS)if(re.test(n))return esp;
+ return 'OTROS';
+}
+async function calcMateriales(){
+ const enlazadas=P.actividadesIfc.filter(a=>a.apuId&&a.qty>0);
+ if(!enlazadas.length){flash('Enlaza APUs con cantidades en Presupuesto antes de calcular materiales');return;}
+ flash('Calculando materiales de '+enlazadas.length+' actividades…');
+ const map={};
+ for(const a of enlazadas){
+  const ins=await getApuInsumos(a.apuId);
+  for(const x of ins){
+   const k=x.codigo||x.nombre;
+   const cant=(a.qty||0)*(x.rendimiento||0)*(1+(x.desperdicio||0));
+   const m=map[k]=map[k]||{codigo:x.codigo,nombre:x.nombre,tipo:x.tipo,unidad:x.unidad,cant:0,precio:x.precio_unitario||0};
+   m.cant+=cant;
+   if(x.precio_unitario)m.precio=x.precio_unitario;
+  }
+ }
+ P.materiales=Object.values(map).map(m=>({...m,esp:especialidad(m),cant:Math.round(m.cant*100)/100}));
+ P.materiales.sort((a,b)=>a.esp.localeCompare(b.esp)||a.nombre.localeCompare(b.nombre));
+ renderMat();autosave();
+ flash(`✓ ${P.materiales.length} insumos únicos consolidados (repetidos sumados) de ${enlazadas.length} actividades`);
+}
+function provList(){
+ const s=new Set();
+ for(const c in P.preciosProveedores)for(const p in P.preciosProveedores[c])s.add(p);
+ return [...s].slice(0,3);
+}
+function renderMat(){
+ const f=$('mat-filtro').value, esp=$('mat-esp').value;
+ let list=P.materiales;
+ if(f==='MAT')list=list.filter(m=>m.tipo==='MAT'||m.esp==='HERRAMIENTA MENOR');
+ if(f==='ESP')list=list.filter(m=>m.esp===esp);
+ const provs=provList();
+ const ths=$('tbl-mat').querySelectorAll('thead th');
+ for(let i=0;i<3;i++)ths[6+i].textContent=provs[i]?provs[i].slice(0,16):'Prov. '+(i+1);
+ const tb=$('tbl-mat').querySelector('tbody'); tb.innerHTML='';
+ let totBase=0,totMejor=0;
+ list.forEach(m=>{
+  const pp=P.preciosProveedores[m.codigo]||{};
+  const vals=provs.map(p=>pp[p]||0);
+  const cands=[m.precio,...vals].filter(v=>v>0);
+  const mejor=cands.length?Math.min(...cands):0;
+  const idxMejor=vals.indexOf(mejor);
+  const mejorProv=idxMejor>=0?provs[idxMejor]:'base APU';
+  totBase+=m.cant*(m.precio||0); totMejor+=m.cant*(mejor||m.precio||0);
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${m.codigo||''}</td><td>${m.nombre}</td><td class="hint">${m.esp}</td><td>${m.unidad||''}</td>
+   <td style="text-align:right">${(m.cant||0).toLocaleString('es-CO')}</td>
+   <td style="text-align:right">${m.precio?fmt(m.precio):'—'}</td>`+
+   [0,1,2].map(i=>{
+    const v=vals[i];
+    return `<td style="text-align:right" class="${v>0&&v===mejor?'best':''}">${v>0?fmt(v):'—'}</td>`;
+   }).join('')+
+   `<td class="best">${mejor?fmt(mejor)+' · '+mejorProv:'—'}</td>`;
+  tb.appendChild(tr);
+ });
+ if(!list.length)tb.innerHTML='<tr><td colspan="10" class="hint" style="font-style:italic;padding:12px">Sin materiales — pulsa «Calcular materiales totales» (requiere actividades con APU en Presupuesto).</td></tr>';
+ $('mat-stats').innerHTML=`
+  <div class="stat"><span class="lbl">Insumos únicos</span><span class="val">${P.materiales.length}</span></div>
+  <div class="stat"><span class="lbl">Total a precios base</span><span class="val viol">${fmt(totBase)}</span></div>
+  <div class="stat"><span class="lbl">Total al mejor precio</span><span class="val ok">${fmt(totMejor)}</span></div>
+  <div class="stat"><span class="lbl">Proveedores</span><span class="val new">${provs.length}/3</span></div>`;
+}
+$('btn-mat-calc').onclick=calcMateriales;
+$('mat-filtro').onchange=()=>{$('mat-esp-wrap').style.display=$('mat-filtro').value==='ESP'?'':'none';renderMat();};
+$('mat-esp').onchange=renderMat;
+
+/* ---- 1: borradores de correo por especialidad ---- */
+let mailCustom=false;
+document.querySelectorAll('.btn-esp').forEach(b=>b.onclick=()=>{
+ const esp=b.dataset.esp;
+ const list=P.materiales.filter(m=>m.esp===esp);
+ if(!list.length){flash('No hay materiales de '+esp+' — pulsa primero «Calcular materiales totales»');return;}
+ const cuerpo=`Buen día,
+
+Solicitamos cotización de los siguientes materiales (${esp}) para el proyecto ${P.model.proyecto||P.nombre}, con entrega en ${P.model.direccion||P.model.ciudad||'obra'}:
+
+`+list.map(m=>` - ${m.nombre} — ${(m.cant||0).toLocaleString('es-CO')} ${m.unidad||''}`).join('\n')+`
+
+Agradecemos responder idealmente en Excel/CSV con columnas: material, unidad y precio unitario (IVA discriminado), junto con disponibilidad, tiempo de entrega y validez de la oferta.
+
+Cordial saludo,
+${P.poliza.trc.tomador||P.poliza.decenal.tomador||''}`;
+ mailCustom=true;
+ $('mail-para').value='';$('mail-para').dataset.auto='0';
+ $('mail-asunto').value=`Solicitud cotización materiales ${esp} — ${P.model.proyecto||P.nombre}`;
+ $('mail-cuerpo').value=cuerpo;
+ document.querySelector('[data-tab="correo"]').click();
+ flash('Borrador de '+esp+' listo en la pestaña Correo — pon el correo del distribuidor y envía');
+});
+
+/* ---- 2: subir cotización de proveedor (hasta 3) ---- */
+const normTxt=s=>String(s).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+function overlapWords(a,b){
+ const A=new Set(a.split(' ').filter(w=>w.length>2)),B=new Set(b.split(' ').filter(w=>w.length>2));
+ if(!A.size||!B.size)return 0;
+ let c=0;for(const w of A)if(B.has(w))c++;
+ return c/Math.min(A.size,B.size);
+}
+$('file-quote').onchange=e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const prov=($('quote-prov').value||'').trim().slice(0,60);
+ if(!prov){flash('Escribe el nombre del proveedor antes de subir la cotización');e.target.value='';return;}
+ if(!P.materiales.length){flash('Calcula primero los materiales totales');e.target.value='';return;}
+ const provs=provList();
+ if(!provs.includes(prov)&&provs.length>=3){flash('Ya hay 3 proveedores — repite un nombre existente para actualizarlo');e.target.value='';return;}
+ const r=new FileReader();
+ r.onload=()=>{
+  try{
+   const wb=XLSX.read(r.result,{type:'binary'});
+   const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+   let matched=0;
+   for(const row of rows){
+    if(!Array.isArray(row))continue;
+    let nombre='',precio=0;
+    for(const cell of row){
+     if(typeof cell==='number'&&cell>0){precio=cell;continue;}
+     const s=String(cell).trim();
+     if(!s)continue;
+     if(/^[\d.,\s$]+$/.test(s)){const p=parseFloat(s.replace(/[$\s]/g,'').replace(/\./g,'').replace(',','.'));if(p>0)precio=p;}
+     else if(s.length>nombre.length)nombre=s;
+    }
+    if(!nombre||!(precio>0))continue;
+    const nn=normTxt(nombre);
+    const hit=P.materiales.find(m=>m.codigo&&nn.includes(normTxt(m.codigo)))
+      ||P.materiales.find(m=>{const mn=normTxt(m.nombre);return mn===nn||mn.includes(nn)||nn.includes(mn)||overlapWords(mn,nn)>=0.6;});
+    if(hit){(P.preciosProveedores[hit.codigo]=P.preciosProveedores[hit.codigo]||{})[prov]=precio;matched++;}
+   }
+   renderMat();autosave();
+   $('quote-out').innerHTML=matched
+    ?`<b style="color:var(--ok)">✓ ${matched} materiales emparejados con los precios de «${prov}»</b> — el más económico queda en verde.`
+    :`<b style="color:var(--accent-2)">No se emparejó ningún material.</b> El archivo debe tener el nombre del material y su precio unitario por fila.`;
+  }catch(err){flash('Error leyendo la cotización: '+err.message);}
+ };
+ r.readAsBinaryString(f); e.target.value='';
+};
+
+/* ---- actualizar precios en Cloudflare ---- */
+$('btn-cf-push').onclick=async()=>{
+ if(!cfUrl()){$('cf-push-out').innerHTML='<b style="color:var(--accent-2)">Configura primero la URL de Cloudflare</b> (botón ☁ en Presupuesto).';return;}
+ const body=[];
+ for(const cod in P.preciosProveedores)for(const prov in P.preciosProveedores[cod]){
+  const mat=P.materiales.find(m=>m.codigo===cod);
+  body.push({insumo_codigo:cod,proveedor:prov,precio:P.preciosProveedores[cod][prov],unidad:mat?mat.unidad:null});
+ }
+ if(!body.length){$('cf-push-out').textContent='No hay precios de proveedores para subir — sube primero una cotización.';return;}
+ $('cf-push-out').textContent='Subiendo '+body.length+' precios…';
+ try{
+  const r=await fetch(cfUrl()+'/api/precios',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  $('cf-push-out').innerHTML=d.ok
+   ?`<b style="color:var(--ok)">✓ ${d.actualizados} precios actualizados en Cloudflare D1 (${d.fecha})</b>`
+   :'<b style="color:var(--accent-2)">Error: '+(d.error||r.status)+'</b>';
+ }catch(err){$('cf-push-out').textContent='Error de red: '+err.message;}
+};
+
+/* ---- exports Excel del presupuesto ---- */
+$('btn-xls-general').onclick=()=>{
+ const rows=[['WBS','Actividad','Unidad','Cantidad','APU enlazado','Vr. unitario','Total']];
+ P.actividadesIfc.forEach(a=>rows.push([a.wbs||'',a.nombre,a.apuUnidad||'',a.qty||0,a.apuNombre||'SIN APU',a.apuPrecio||0,(a.qty||0)*(a.apuPrecio||0)]));
+ P.presupuesto.items.forEach(it=>rows.push(['','(manual) '+it.desc,it.unidad,it.qty,it.apu||'',it.valor||0,itemTotal(it)]));
+ rows.push([]);
+ P.presupuesto.indirectos.forEach(x=>rows.push(['','INDIRECTO — '+x.capitulo,'gl',1,'',x.valor||0,x.valor||0]));
+ rows.push([]);
+ rows.push(['','TOTAL PRESUPUESTO','','','','',P.presupuesto.totalDirecto+P.presupuesto.totalIndirecto]);
+ const wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Presupuesto general');
+ XLSX.writeFile(wb,P.id+'_presupuesto_general.xlsx');
+};
+$('btn-xls-detallado').onclick=async()=>{
+ const acts=P.actividadesIfc.filter(x=>x.apuId);
+ if(!acts.length){flash('No hay actividades con APU enlazado');return;}
+ const provs=provList();
+ const rows=[['Actividad IFC','APU','Insumo','Código','Tipo','Unidad','Rendimiento','Cantidad total','Vr. unitario base',...provs.map(p=>'Vr. '+p),'Proveedor más económico','Vr. más económico','Total más económico']];
+ for(const a of acts){
+  const ins=await getApuInsumos(a.apuId);
+  for(const x of ins){
+   const cant=(a.qty||0)*(x.rendimiento||0)*(1+(x.desperdicio||0));
+   const pp=P.preciosProveedores[x.codigo]||{};
+   const cands=[['base APU',x.precio_unitario||0],...provs.map(p=>[p,pp[p]||0])].filter(c=>c[1]>0);
+   const best=cands.length?cands.reduce((mn,c)=>c[1]<mn[1]?c:mn):['',0];
+   rows.push([a.nombre,a.apuNombre,x.nombre,x.codigo,x.tipo,x.unidad,x.rendimiento,Math.round(cant*100)/100,x.precio_unitario||0,
+    ...provs.map(p=>pp[p]||''),best[0],best[1],Math.round(cant*best[1])]);
+  }
+ }
+ const wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Detallado insumos');
+ XLSX.writeFile(wb,P.id+'_presupuesto_detallado.xlsx');
+};
+$('btn-mat-xls').onclick=()=>{
+ if(!P.materiales.length){flash('Calcula primero los materiales totales');return;}
+ const provs=provList();
+ const rows=[['Código','Insumo','Especialidad','Unidad','Cantidad total','Vr. base',...provs,'Mejor precio','Total al mejor precio']];
+ P.materiales.forEach(m=>{
+  const pp=P.preciosProveedores[m.codigo]||{};
+  const cands=[m.precio,...provs.map(p=>pp[p]||0)].filter(v=>v>0);
+  const mejor=cands.length?Math.min(...cands):0;
+  rows.push([m.codigo,m.nombre,m.esp,m.unidad,m.cant,m.precio,...provs.map(p=>pp[p]||''),mejor,Math.round(m.cant*mejor)]);
+ });
+ const wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Materiales totales');
+ XLSX.writeFile(wb,P.id+'_materiales.xlsx');
+};
+
 /* ================= GUARDAR / EXPORTAR ================= */
 function download(content,name,mime){
  const a=document.createElement('a');
@@ -962,10 +1543,13 @@ bindAll();
 renderModel();
 renderApuInfo();
 renderItems();
+renderActIfc();
 renderCron();
 renderDocs();
 renderAseg();
+renderMat();
 regenMail();
+loadApuBase();
 </script>
 </body>
 </html>
