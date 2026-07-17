@@ -661,12 +661,32 @@ function parseTiposCantidades(ents){
   const tipo=(strs[1]||e.t).replace(/:\d+$/,'');
   const cat=CAT_MAP[e.t]||e.t;
   const q=elemQ[id]||{};
-  elems[id]={tipo,cat};
+  elems[id]={tipo,cat,q};
   const t=tipos[tipo]=tipos[tipo]||{cat,un:0,m2:0,ml:0,m3:0};
   t.un++; t.m2+=q.m2||0; t.ml+=q.ml||0; t.m3+=q.m3||0;
  }
  for(const k in tipos){const t=tipos[k];t.m2=Math.round(t.m2*100)/100;t.ml=Math.round(t.ml*100)/100;t.m3=Math.round(t.m3*1000)/1000;}
  return {tipos,elems};
+}
+
+/* unidad del APU → clave de cantidad del IFC: m2=área, ml=longitud, m3=volumen, un=conteo */
+function unidadKey(u){
+ u=String(u||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+ if(u==='M2'||u==='MT2')return 'm2';
+ if(u==='M3'||u==='MT3')return 'm3';
+ if(u==='ML'||u==='M'||u==='MT'||u==='MTS')return 'ml';
+ if(u==='UND'||u==='UN'||u==='U'||u==='UNI')return 'un';
+ return null;
+}
+function calcQtyAuto(elems){
+ const t={un:0,m2:0,ml:0,m3:0};
+ for(const id of (elems||[])){
+  t.un++;
+  const e=IFC_ELEMS[id];
+  if(e&&e.q){t.m2+=e.q.m2||0;t.ml+=e.q.ml||0;t.m3+=e.q.m3||0;}
+ }
+ t.m2=Math.round(t.m2*100)/100; t.ml=Math.round(t.ml*100)/100; t.m3=Math.round(t.m3*1000)/1000;
+ return t;
 }
 
 function parsePsiActivities(ents){
@@ -747,9 +767,16 @@ $('file-ifc').onchange=e=>{
     const prev=Object.fromEntries(P.actividadesIfc.map(a=>[a.aid,a]));
     P.actividadesIfc=acts.map(a=>{
      const old=prev[a.aid]||{};
-     return {...a,qty:old.qtyManual?old.qty:a.qty,qtyManual:old.qtyManual||false,
-      elems:[...new Set([...(a.elems||[]),...(old.elems||[])])],
-      apuId:old.apuId||null,apuNombre:old.apuNombre||'',apuUnidad:old.apuUnidad||'',apuPrecio:old.apuPrecio||0};
+     const elems=[...new Set([...(a.elems||[]),...(old.elems||[])])];
+     const qtyAuto=calcQtyAuto(elems);
+     const apuUnidad=old.apuUnidad||'';
+     // cantidad según la unidad del APU enlazado: m2=área, ml=longitud, m3=volumen, un=conteo
+     let qty=qtyAuto.un;
+     const k=unidadKey(apuUnidad);
+     if(old.qtyManual)qty=old.qty;
+     else if(k&&qtyAuto[k]>0)qty=qtyAuto[k];
+     return {...a,qty,qtyManual:old.qtyManual||false,elems,qtyAuto,
+      apuId:old.apuId||null,apuNombre:old.apuNombre||'',apuUnidad,apuPrecio:old.apuPrecio||0};
     });
     renderActIfc();
    }
@@ -1022,13 +1049,20 @@ function renderItems(){
   };
   iQty.oninput=()=>{it.qty=parseFloat(iQty.value)||0;tr.children[5].textContent=fmt(itemTotal(it));renderPresStats();autosave();};
   iVal.oninput=()=>{it.valor=parseFloat(iVal.value)||0;tr.children[5].textContent=fmt(itemTotal(it));renderPresStats();autosave();};
+  const aplicarUnidadApuItem=()=>{
+   // la unidad del ítem salta a la del APU y la cantidad se toma del IFC (m2=área, ml=longitud, m3=volumen, un=conteo)
+   const k=unidadKey(it.apuUnidadApu);
+   if(k){it.unidad=k;if(it.qtyAuto&&it.qtyAuto[k]>0)it.qty=it.qtyAuto[k];}
+  };
   tr.querySelector('.apu-link').onclick=()=>openApuPicker(sel=>{
    it.apuId=sel.id;it.apuNombre=sel.nombre;it.apuUnidadApu=sel.unidad;it.valor=sel.precio;
+   aplicarUnidadApuItem();
    renderItems();autosave();
   });
   const edI=tr.querySelector('.apu-edit');
   if(edI)edI.onclick=()=>openApuEdit({id:it.apuId,nombre:it.apuNombre,unidad:it.apuUnidadApu,precio:it.valor},nuevo=>{
    it.apuId=nuevo.id;it.apuNombre=nuevo.nombre;if(nuevo.unidad)it.apuUnidadApu=nuevo.unidad;it.valor=nuevo.precio;
+   aplicarUnidadApuItem();
    renderItems();autosave();
   });
   tr.querySelector('.del').onclick=()=>{P.presupuesto.items.splice(i,1);renderItems();autosave();};
@@ -1541,7 +1575,7 @@ function renderActIfc(){
   tr.innerHTML=`<td>${a.wbs||''}</td>
    <td>${a.nombre}<div class="hint">${a.inicio||''}${a.fin?' → '+a.fin:''}${a.pct?' · '+a.pct+'%':''}</div></td>
    <td class="hint" title="${tipos.replace(/"/g,'&quot;')}">${tipos.slice(0,55)||'—'}${tipos.length>55?'…':''}</td>
-   <td><input class="num" type="number" step="any" value="${a.qty??''}" style="width:64px"></td>
+   <td><input class="num" type="number" step="any" value="${a.qty??''}" style="width:64px" title="Del IFC: un=${(a.qtyAuto||{}).un??'—'} · m²=${(a.qtyAuto||{}).m2??'—'} · ml=${(a.qtyAuto||{}).ml??'—'} · m³=${(a.qtyAuto||{}).m3??'—'}"></td>
    <td>${a.apuUnidad||'un'}</td>
    <td><span class="apu-link">${a.apuNombre||'⊕ buscar APU…'}</span>${a.apuId?' <span class="apu-edit" title="Editar APU (se guarda como NUEVO en Cloudflare)" style="cursor:pointer;color:var(--accent-3)">✎</span>':''}</td>
    <td style="text-align:right">${a.apuPrecio?fmt(a.apuPrecio):'—'}</td>
@@ -1552,13 +1586,21 @@ function renderActIfc(){
    tr.children[7].textContent=fmt((a.qty||0)*(a.apuPrecio||0));
    renderPresStats();autosave();
   };
+  const aplicarUnidadApu=()=>{
+   // cantidad automática según la unidad del APU (m2=área, ml=longitud, m3=volumen, un=conteo)
+   if(!a.qtyAuto&&(a.elems||[]).length)a.qtyAuto=calcQtyAuto(a.elems);
+   const k=unidadKey(a.apuUnidad);
+   if(k&&a.qtyAuto&&a.qtyAuto[k]>0){a.qty=a.qtyAuto[k];a.qtyManual=false;}
+  };
   tr.querySelector('.apu-link').onclick=()=>openApuPicker(sel=>{
    a.apuId=sel.id;a.apuNombre=sel.nombre;a.apuUnidad=sel.unidad;a.apuPrecio=sel.precio;
+   aplicarUnidadApu();
    renderActIfc();autosave();
   });
   const edA=tr.querySelector('.apu-edit');
   if(edA)edA.onclick=()=>openApuEdit({id:a.apuId,nombre:a.apuNombre,unidad:a.apuUnidad,precio:a.apuPrecio},nuevo=>{
    a.apuId=nuevo.id;a.apuNombre=nuevo.nombre;if(nuevo.unidad)a.apuUnidad=nuevo.unidad;a.apuPrecio=nuevo.precio;
+   aplicarUnidadApu();
    renderActIfc();autosave();
   });
   tr.querySelector('.del').onclick=()=>{P.actividadesIfc.splice(i,1);renderActIfc();autosave();};
@@ -1954,7 +1996,11 @@ $('ifc-asignar').onclick=()=>{
  a.elems=[...new Set([...(a.elems||[]),...ifcSel])];
  a.tipos={};
  for(const id of a.elems){const e=IFC_ELEMS[id];const k=e?e.tipo:('elem '+id);a.tipos[k]=(a.tipos[k]||0)+1;}
- if(!a.qtyManual)a.qty=a.elems.length;
+ a.qtyAuto=calcQtyAuto(a.elems);
+ if(!a.qtyManual){
+  const uk=unidadKey(a.apuUnidad);
+  a.qty=(uk&&a.qtyAuto[uk]>0)?a.qtyAuto[uk]:a.qtyAuto.un;
+ }
  renderActIfc(); autosave();
  $('modal-ifc').classList.remove('on');
  flash(`✓ ${ifcSel.size} elemento(s) asignados a «${nombre}» — la actividad quedó en Presupuesto para enlazar su APU`);
