@@ -363,7 +363,7 @@
       <thead><tr><th>Código</th><th style="width:26%">Insumo</th><th>Esp.</th><th>Und</th><th>Cant. total</th><th>Vr. base</th><th>Prov. 1</th><th>Prov. 2</th><th>Prov. 3</th><th>Más económico</th></tr></thead>
       <tbody></tbody>
     </table></div>
-    <p class="hint">Suma <b>cantidad de la actividad × rendimiento del insumo × (1+desperdicio)</b> de todos los APUs enlazados en Presupuesto; los insumos repetidos entre actividades se consolidan. La herramienta menor (MQ0301) se incluye como especialidad propia.</p>
+    <p class="hint">Suma <b>cantidad × rendimiento del insumo × (1+desperdicio)</b> de TODOS los APUs enlazados en Presupuesto — tanto de las <b>actividades del IFC</b> como de los <b>costos directos por tipo de Revit</b>; los insumos repetidos entre partidas se consolidan. La herramienta menor (MQ0301) se incluye como especialidad propia. Los APUs importados por Excel no traen desglose de insumos y no aportan materiales.</p>
   </div>
   <div class="cols">
     <div class="box">
@@ -1587,15 +1587,21 @@ function especialidad(ins){
  return 'OTROS';
 }
 async function calcMateriales(){
- const enlazadas=P.actividadesIfc.filter(a=>a.apuId&&a.qty>0);
- if(!enlazadas.length){flash('Enlaza APUs con cantidades en Presupuesto antes de calcular materiales');return;}
- flash('Calculando materiales de '+enlazadas.length+' actividades…');
+ // fuentes: actividades del IFC con APU + ítems de costos directos (tipos de Revit) con APU
+ const fuentes=[
+  ...P.actividadesIfc.filter(a=>a.apuId&&(parseFloat(a.qty)||0)>0)
+    .map(a=>({qty:parseFloat(a.qty),apuId:a.apuId,origen:a.nombre})),
+  ...P.presupuesto.items.filter(it=>it.apuId&&!String(it.apuId).startsWith('x:')&&(parseFloat(it.qty)||0)>0)
+    .map(it=>({qty:parseFloat(it.qty),apuId:it.apuId,origen:it.desc}))
+ ];
+ if(!fuentes.length){flash('Enlaza APUs con cantidades (en actividades del IFC o en costos directos) antes de calcular materiales');return;}
+ flash('Calculando materiales de '+fuentes.length+' partidas con APU…');
  const map={};
- for(const a of enlazadas){
-  const ins=await getApuInsumos(a.apuId);
+ for(const s of fuentes){
+  const ins=await getApuInsumos(s.apuId);
   for(const x of ins){
    const k=x.codigo||x.nombre;
-   const cant=(a.qty||0)*(x.rendimiento||0)*(1+(x.desperdicio||0));
+   const cant=s.qty*(x.rendimiento||0)*(1+(x.desperdicio||0));
    const m=map[k]=map[k]||{codigo:x.codigo,nombre:x.nombre,tipo:x.tipo,unidad:x.unidad,cant:0,precio:x.precio_unitario||0};
    m.cant+=cant;
    if(x.precio_unitario)m.precio=x.precio_unitario;
@@ -1604,7 +1610,7 @@ async function calcMateriales(){
  P.materiales=Object.values(map).map(m=>({...m,esp:especialidad(m),cant:Math.round(m.cant*100)/100}));
  P.materiales.sort((a,b)=>a.esp.localeCompare(b.esp)||a.nombre.localeCompare(b.nombre));
  renderMat();autosave();
- flash(`✓ ${P.materiales.length} insumos únicos consolidados (repetidos sumados) de ${enlazadas.length} actividades`);
+ flash(`✓ ${P.materiales.length} insumos únicos consolidados de ${fuentes.length} partidas (actividades IFC + costos directos)`);
 }
 function provList(){
  const s=new Set();
@@ -1754,10 +1760,13 @@ $('btn-xls-general').onclick=()=>{
  XLSX.writeFile(wb,P.id+'_presupuesto_general.xlsx');
 };
 $('btn-xls-detallado').onclick=async()=>{
- const acts=P.actividadesIfc.filter(x=>x.apuId);
- if(!acts.length){flash('No hay actividades con APU enlazado');return;}
+ const acts=[
+  ...P.actividadesIfc.filter(x=>x.apuId).map(x=>({qty:parseFloat(x.qty)||0,apuId:x.apuId,nombre:x.nombre,apuNombre:x.apuNombre})),
+  ...P.presupuesto.items.filter(it=>it.apuId&&!String(it.apuId).startsWith('x:')).map(it=>({qty:parseFloat(it.qty)||0,apuId:it.apuId,nombre:'(directo) '+it.desc,apuNombre:it.apuNombre}))
+ ];
+ if(!acts.length){flash('No hay partidas con APU enlazado');return;}
  const provs=provList();
- const rows=[['Actividad IFC','APU','Insumo','Código','Tipo','Unidad','Rendimiento','Cantidad total','Vr. unitario base',...provs.map(p=>'Vr. '+p),'Proveedor más económico','Vr. más económico','Total más económico']];
+ const rows=[['Partida (actividad IFC / costo directo)','APU','Insumo','Código','Tipo','Unidad','Rendimiento','Cantidad total','Vr. unitario base',...provs.map(p=>'Vr. '+p),'Proveedor más económico','Vr. más económico','Total más económico']];
  for(const a of acts){
   const ins=await getApuInsumos(a.apuId);
   for(const x of ins){
