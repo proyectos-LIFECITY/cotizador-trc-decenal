@@ -635,22 +635,49 @@ function parseTiposCantidades(ents){
   if(!nums.length)continue;
   qty[id]={k:e.t==='QUANTITYAREA'?'m2':e.t==='QUANTITYLENGTH'?'ml':'m3',v:nums[nums.length-1]};
  }
- // 2) IfcElementQuantity → medidas máximas por tipo de medida
+ // 1b) parámetros dimensionales de Revit exportados como property sets
+ //     (Área/Area → m2, Volumen/Volume → m3, Longitud/Length/Largo → ml)
+ //     — mismo criterio del plugin del repo 45 (HOST_AREA/VOLUME_COMPUTED por elemento)
+ const dimProp={};
+ for(const id in ents){
+  const e=ents[id];
+  if(e.t!=='PROPERTYSINGLEVALUE')continue;
+  const strs=getStrs(e.p);
+  const nombre=(strs[0]||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
+  const mv=e.p.match(/IFC(AREAMEASURE|VOLUMEMEASURE|LENGTHMEASURE|POSITIVELENGTHMEASURE|REAL)\s*\(\s*(-?\d+\.?\d*(?:[eE][-+]?\d+)?)\s*\)/);
+  if(!mv)continue;
+  const val=parseFloat(mv[2]);
+  if(!(val>0))continue;
+  let k=null;
+  if(mv[1]==='AREAMEASURE')k='m2';
+  else if(mv[1]==='VOLUMEMEASURE')k='m3';
+  else if((mv[1]==='LENGTHMEASURE'||mv[1]==='POSITIVELENGTHMEASURE')&&/^(LONGITUD|LENGTH|LARGO)$/.test(nombre))k='ml';
+  else if(mv[1]==='REAL'&&/^(AREA|SUPERFICIE)$/.test(nombre))k='m2';
+  else if(mv[1]==='REAL'&&/^(VOLUMEN|VOLUME)$/.test(nombre))k='m3';
+  else if(mv[1]==='REAL'&&/^(LONGITUD|LENGTH|LARGO)$/.test(nombre))k='ml';
+  if(k)dimProp[id]={k,v:val};
+ }
+ // 2) IfcElementQuantity y psets dimensionales → medidas máximas por conjunto
  const eq={};
  for(const id in ents){
-  if(ents[id].t!=='ELEMENTQUANTITY')continue;
+  const t=ents[id].t;
+  if(t!=='ELEMENTQUANTITY'&&t!=='PROPERTYSET')continue;
   const agg={};
-  for(const r of getRefs(ents[id].p)){const q=qty[r];if(q)agg[q.k]=Math.max(agg[q.k]||0,q.v);}
+  for(const r of getRefs(ents[id].p)){
+   const q=qty[r]||dimProp[r];
+   if(q)agg[q.k]=Math.max(agg[q.k]||0,q.v);
+  }
   if(Object.keys(agg).length)eq[id]=agg;
  }
- // 3) relación cantidades → elementos
+ // 3) relación conjuntos → elementos (combinando por máximo si hay varias fuentes)
  const elemQ={};
+ const addQ=(id,src)=>{const t=elemQ[id]=elemQ[id]||{};for(const k in src)t[k]=Math.max(t[k]||0,src[k]);};
  for(const id in ents){
   if(ents[id].t!=='RELDEFINESBYPROPERTIES')continue;
   const refs=getRefs(ents[id].p);
   const q=eq[refs[refs.length-1]];
   if(!q)continue;
-  for(let i=0;i<refs.length-1;i++)if(ents[refs[i]]&&ELEM_RE.test(ents[refs[i]].t))elemQ[refs[i]]=q;
+  for(let i=0;i<refs.length-1;i++)if(ents[refs[i]]&&ELEM_RE.test(ents[refs[i]].t))addQ(refs[i],q);
  }
  // 4) tipo de Revit por elemento (Name sin el id de instancia) + agregado por tipo
  const tipos={}, elems={};
