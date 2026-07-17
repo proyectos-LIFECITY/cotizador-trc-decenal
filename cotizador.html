@@ -109,6 +109,27 @@
   <button class="btn sm primary" id="btn-save"><span class="ic">💾</span> Guardar</button>
 </div>
 <div class="flash" id="flash"></div>
+<div class="modal" id="modal-apu-edit">
+  <div class="box2" style="width:min(1000px,96vw)">
+    <div class="mh"><h3>Editar APU — se guarda como uno NUEVO en Cloudflare</h3><button class="x" id="apuedit-x">✕</button></div>
+    <div class="mb">
+      <div class="grid3">
+        <div class="ctl" style="grid-column:1/3"><label>Nombre del nuevo APU</label><input id="apuedit-nombre" class="inp"></div>
+        <div class="ctl"><label>Unidad del APU</label><input id="apuedit-unidad" class="inp"></div>
+      </div>
+      <div style="overflow:auto;max-height:44vh;margin-top:10px"><table class="tbl" id="tbl-apuedit">
+        <thead><tr><th>Código</th><th style="width:28%">Insumo</th><th>Tipo</th><th>Und</th><th>Rend.</th><th>Desp.</th><th>Vr. unitario</th><th>Parcial</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <div class="btnrow" style="margin-top:10px;align-items:center">
+        <button class="btn sm" id="apuedit-add"><span class="ic">+</span> Insumo</button>
+        <span class="hint" style="flex:1">Total del APU: <b id="apuedit-total" style="color:var(--accent);font-size:13px">$0</b></span>
+        <button class="btn primary" id="apuedit-save"><span class="ic">☁</span> Guardar como nuevo APU y usarlo</button>
+      </div>
+      <p class="hint" id="apuedit-out">El APU original de la base no se modifica: los cambios se guardan como un APU nuevo en Cloudflare (también al cerrar, si confirmas).</p>
+    </div>
+  </div>
+</div>
 <div class="modal" id="modal-ifc">
   <div class="box2" style="width:min(1020px,96vw)">
     <div class="mh"><h3>Asignar actividad a elementos del IFC</h3><button class="x" id="ifc-modal-x">✕</button></div>
@@ -118,8 +139,14 @@
         <button class="btn sm" id="ifc-sel-clear" style="align-self:end"><span class="ic">⌀</span> Limpiar selección</button>
         <button class="btn sm primary" id="ifc-asignar" style="align-self:end"><span class="ic">→</span> Asignar a la actividad</button>
       </div>
-      <canvas id="canvas-ifc" style="width:100%;height:52vh;display:block;background:#000;border:1px solid var(--line)"></canvas>
-      <p class="hint" id="ifc-sel-info">Clic = seleccionar/deseleccionar elemento · arrastrar = rotar · rueda = zoom. Requiere haber subido el IFC en esta sesión.</p>
+      <canvas id="canvas-ifc" style="width:100%;height:48vh;display:block;background:#000;border:1px solid var(--line)"></canvas>
+      <div class="btnrow" style="margin-top:8px;align-items:center">
+        <button class="btn sm" id="ifc-toggle-na"><span class="ic">👁</span> <span id="ifc-toggle-na-lbl">Ocultar sin actividad</span></button>
+        <span class="hint" style="letter-spacing:1px">SIMULACIÓN 4D</span>
+        <input type="range" id="ifc-4d" min="0" max="100" value="100" style="flex:1;accent-color:var(--accent)">
+        <b id="ifc-4d-fecha" style="color:var(--accent);min-width:86px;text-align:right">—</b>
+      </div>
+      <p class="hint" id="ifc-sel-info">Clic = seleccionar/deseleccionar elemento · arrastrar = rotar · rueda = zoom. El slider muestra lo construido a esa fecha (violeta = en ejecución); lo sin actividad se ve translúcido.</p>
     </div>
   </div>
 </div>
@@ -298,6 +325,9 @@
     <div class="btnrow">
       <div class="ctl" style="max-width:170px"><label>Fecha de inicio</label><input type="date" id="cron-start"></div>
       <button class="btn viol" id="btn-cron-gen" style="align-self:end"><span class="ic">◈</span> Generar desde el modelo</button>
+      <label class="btn" for="file-xml" style="align-self:end"><span class="ic">⇪</span> Importar XML (MS Project)</label>
+      <input type="file" id="file-xml" accept=".xml" style="display:none">
+      <button class="btn ok" id="btn-cron-3d" style="align-self:end"><span class="ic">◈</span> Ventana 3D: asignar y simular 4D</button>
       <button class="btn" id="btn-cron-add" style="align-self:end"><span class="ic">+</span> Actividad</button>
       <button class="btn" id="btn-cron-csv" style="align-self:end"><span class="ic">⇓</span> CSV (MS Project)</button>
     </div>
@@ -683,6 +713,7 @@ function parsePsiActivities(ents){
    const strs=getStrs(el.p);
    let name=(strs[1]||el.t).replace(/:\d+$/,'');
    a.tipos[name]=(a.tipos[name]||0)+1;
+   (a.elems=a.elems||[]).push(refs[i]);
    a.qty++;
   }
   if(a.qty===0)a.qty=1;
@@ -717,6 +748,7 @@ $('file-ifc').onchange=e=>{
     P.actividadesIfc=acts.map(a=>{
      const old=prev[a.aid]||{};
      return {...a,qty:old.qtyManual?old.qty:a.qty,qtyManual:old.qtyManual||false,
+      elems:[...new Set([...(a.elems||[]),...(old.elems||[])])],
       apuId:old.apuId||null,apuNombre:old.apuNombre||'',apuUnidad:old.apuUnidad||'',apuPrecio:old.apuPrecio||0};
     });
     renderActIfc();
@@ -975,7 +1007,7 @@ function renderItems(){
   tr.innerHTML=`<td><input value="${(it.desc||'').replace(/"/g,'&quot;')}"></td>
    <td><select style="width:60px" title="un=${qa.un??'—'} · m2=${qa.m2??'—'} · ml=${qa.ml??'—'} · m3=${qa.m3??'—'}">${unOpts}</select></td>
    <td><input class="num" type="number" step="any" value="${it.qty??''}" style="width:84px"></td>
-   <td><span class="apu-link">${it.apuNombre||it.apu||'⊕ buscar APU…'}</span>${it.apuUnidadApu?` <span class="hint">(${it.apuUnidadApu})</span>`:''}</td>
+   <td><span class="apu-link">${it.apuNombre||it.apu||'⊕ buscar APU…'}</span>${it.apuUnidadApu?` <span class="hint">(${it.apuUnidadApu})</span>`:''}${it.apuId?' <span class="apu-edit" title="Editar APU (se guarda como NUEVO en Cloudflare)" style="cursor:pointer;color:var(--accent-3)">✎</span>':''}</td>
    <td><input class="num" type="number" value="${it.valor??''}"></td>
    <td style="text-align:right;color:var(--accent)">${fmt(itemTotal(it))}</td>
    <td class="del">✕</td>`;
@@ -992,6 +1024,11 @@ function renderItems(){
   iVal.oninput=()=>{it.valor=parseFloat(iVal.value)||0;tr.children[5].textContent=fmt(itemTotal(it));renderPresStats();autosave();};
   tr.querySelector('.apu-link').onclick=()=>openApuPicker(sel=>{
    it.apuId=sel.id;it.apuNombre=sel.nombre;it.apuUnidadApu=sel.unidad;it.valor=sel.precio;
+   renderItems();autosave();
+  });
+  const edI=tr.querySelector('.apu-edit');
+  if(edI)edI.onclick=()=>openApuEdit({id:it.apuId,nombre:it.apuNombre,unidad:it.apuUnidadApu,precio:it.valor},nuevo=>{
+   it.apuId=nuevo.id;it.apuNombre=nuevo.nombre;if(nuevo.unidad)it.apuUnidadApu=nuevo.unidad;it.valor=nuevo.precio;
    renderItems();autosave();
   });
   tr.querySelector('.del').onclick=()=>{P.presupuesto.items.splice(i,1);renderItems();autosave();};
@@ -1079,6 +1116,38 @@ $('btn-cron-csv').onclick=()=>{
  P.cronograma.actividades.forEach((a,i)=>{csv+=`${i+1},"${a.nombre}",${a.inicio},${finAct(a)},${a.dur}\n`;});
  download(csv,P.id+'_cronograma.csv','text/csv');
 };
+
+/* ---- importar cronograma XML (MS Project) ---- */
+$('file-xml').onchange=e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const r=new FileReader();
+ r.onload=()=>{
+  try{
+   const doc=new DOMParser().parseFromString(r.result,'text/xml');
+   if(doc.querySelector('parsererror'))throw new Error('XML inválido');
+   const acts=[];
+   for(const t of doc.getElementsByTagName('Task')){
+    const get=tag=>{const el=t.getElementsByTagName(tag)[0];return el?el.textContent.trim():'';};
+    const nombre=get('Name');
+    const start=get('Start').slice(0,10);
+    const fin=get('Finish').slice(0,10);
+    if(!nombre||!start)continue;
+    if(get('Summary')==='1')continue;              // tareas resumen: fuera
+    if(get('IsNull')==='1')continue;
+    const dur=fin?Math.max(1,Math.round((new Date(fin)-new Date(start))/864e5)+1):1;
+    const wbs=get('WBS')||get('OutlineNumber');
+    acts.push({id:acts.length+1,nombre:(wbs?wbs+' · ':'')+nombre,inicio:start,dur});
+   }
+   if(!acts.length)throw new Error('no se encontraron tareas con nombre y fecha de inicio');
+   if(P.cronograma.actividades.length&&!confirm(`El XML trae ${acts.length} tareas y reemplazará las ${P.cronograma.actividades.length} actividades actuales. ¿Continuar?`)){e.target.value='';return;}
+   P.cronograma.actividades=acts;
+   renderCron(); autosave();
+   flash(`✓ ${acts.length} actividades importadas del XML de Project`);
+  }catch(err){flash('Error importando XML: '+err.message);}
+ };
+ r.readAsText(f); e.target.value='';
+};
+$('btn-cron-3d').onclick=()=>openIfcAssign(P.cronograma.actividades[0]?P.cronograma.actividades[0].nombre:'');
 
 function renderCron(){
  const tb=$('tbl-cron').querySelector('tbody'); tb.innerHTML='';
@@ -1386,6 +1455,79 @@ $('apu-search').oninput=()=>{clearTimeout(apuT);apuT=setTimeout(async()=>{
  });
 },280);};
 
+/* ---- editor de APU: se guarda como NUEVO en Cloudflare ---- */
+let APUEDIT={insumos:[],cb:null,dirty:false};
+async function openApuEdit(apu,cb){
+ const ins=await getApuInsumos(apu.id);
+ APUEDIT={insumos:ins.map(x=>({...x})),cb,dirty:false};
+ if(!APUEDIT.insumos.length)APUEDIT.insumos.push({codigo:'',nombre:'',tipo:'MAT',unidad:'un',rendimiento:1,desperdicio:0,precio_unitario:apu.precio||0});
+ $('apuedit-nombre').value=(apu.nombre||'APU')+' (MOD)';
+ $('apuedit-unidad').value=apu.unidad||'';
+ $('apuedit-out').textContent='El APU original no se modifica: los cambios se guardan como un APU nuevo en Cloudflare.';
+ renderApuEdit();
+ $('modal-apu-edit').classList.add('on');
+}
+const insParcial=x=>(parseFloat(x.rendimiento)||0)*(1+(parseFloat(x.desperdicio)||0))*(parseFloat(x.precio_unitario)||0);
+function apuEditTotal(){return APUEDIT.insumos.reduce((s,x)=>s+insParcial(x),0);}
+function renderApuEdit(){
+ const tb=$('tbl-apuedit').querySelector('tbody'); tb.innerHTML='';
+ APUEDIT.insumos.forEach((x,i)=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><input value="${(x.codigo||'').replace(/"/g,'&quot;')}" style="width:82px"></td>
+   <td><input value="${(x.nombre||'').replace(/"/g,'&quot;')}"></td>
+   <td><select style="width:62px"><option ${x.tipo==='MAT'?'selected':''}>MAT</option><option ${x.tipo==='MO'?'selected':''}>MO</option><option ${x.tipo==='MQ'?'selected':''}>MQ</option></select></td>
+   <td><input value="${x.unidad||''}" style="width:52px"></td>
+   <td><input class="num" type="number" step="any" value="${x.rendimiento??''}" style="width:72px"></td>
+   <td><input class="num" type="number" step="any" value="${x.desperdicio??0}" style="width:58px"></td>
+   <td><input class="num" type="number" value="${x.precio_unitario??''}" style="width:98px"></td>
+   <td style="text-align:right;color:var(--accent)">${fmt(insParcial(x))}</td>
+   <td class="del">✕</td>`;
+  const [iC,iN,iU,iR,iD,iP]=[...tr.querySelectorAll('input')];
+  const sT=tr.querySelector('select');
+  const up=()=>{APUEDIT.dirty=true;tr.children[7].textContent=fmt(insParcial(x));$('apuedit-total').textContent=fmt(apuEditTotal());};
+  iC.oninput=()=>{x.codigo=iC.value;APUEDIT.dirty=true;};
+  iN.oninput=()=>{x.nombre=iN.value;APUEDIT.dirty=true;};
+  sT.onchange=()=>{x.tipo=sT.value;APUEDIT.dirty=true;};
+  iU.oninput=()=>{x.unidad=iU.value;APUEDIT.dirty=true;};
+  iR.oninput=()=>{x.rendimiento=parseFloat(iR.value)||0;up();};
+  iD.oninput=()=>{x.desperdicio=parseFloat(iD.value)||0;up();};
+  iP.oninput=()=>{x.precio_unitario=parseFloat(iP.value)||0;up();};
+  tr.querySelector('.del').onclick=()=>{APUEDIT.insumos.splice(i,1);APUEDIT.dirty=true;renderApuEdit();};
+  tb.appendChild(tr);
+ });
+ $('apuedit-total').textContent=fmt(apuEditTotal());
+}
+$('apuedit-add').onclick=()=>{APUEDIT.insumos.push({codigo:'',nombre:'',tipo:'MAT',unidad:'un',rendimiento:1,desperdicio:0,precio_unitario:0});APUEDIT.dirty=true;renderApuEdit();};
+async function saveApuEdit(){
+ if(!cfUrl()){$('apuedit-out').innerHTML='<b style="color:var(--accent-2)">Configura la URL de Cloudflare (botón ☁) para guardar el nuevo APU.</b>';return null;}
+ const body={nombre:$('apuedit-nombre').value.trim(),unidad:$('apuedit-unidad').value.trim(),
+  insumos:APUEDIT.insumos.filter(x=>x.nombre&&(parseFloat(x.rendimiento)||0)>0&&(parseFloat(x.precio_unitario)||0)>0)};
+ if(!body.nombre||!body.insumos.length){$('apuedit-out').innerHTML='<b style="color:var(--accent-2)">Falta el nombre o no hay insumos válidos (rendimiento y precio &gt; 0).</b>';return null;}
+ $('apuedit-out').textContent='Guardando en Cloudflare…';
+ try{
+  const r=await fetch(cfUrl()+'/api/apus',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(!d.ok){$('apuedit-out').textContent='Error: '+(d.error||r.status);return null;}
+  APU_INS_CACHE[d.id]=body.insumos.map(x=>({...x,precio_parcial:insParcial(x)}));
+  return {id:d.id,nombre:d.nombre,unidad:d.unidad,precio:d.precio_total};
+ }catch(e){$('apuedit-out').textContent='Error de red: '+e.message;return null;}
+}
+$('apuedit-save').onclick=async()=>{
+ const nuevo=await saveApuEdit();
+ if(!nuevo)return;
+ $('modal-apu-edit').classList.remove('on');
+ flash(`✓ Nuevo APU #${nuevo.id} guardado en Cloudflare: «${nuevo.nombre}» — ${fmt(nuevo.precio)}`);
+ if(APUEDIT.cb)APUEDIT.cb(nuevo);
+};
+$('apuedit-x').onclick=async()=>{
+ if(APUEDIT.dirty&&cfUrl()&&confirm('¿Guardar los cambios como un NUEVO APU en Cloudflare antes de cerrar?')){
+  const nuevo=await saveApuEdit();
+  if(nuevo){flash(`✓ Nuevo APU #${nuevo.id} guardado: «${nuevo.nombre}»`);if(APUEDIT.cb)APUEDIT.cb(nuevo);}
+  else return; // error al guardar: no cerrar para no perder la edición
+ }
+ $('modal-apu-edit').classList.remove('on');
+};
+
 /* ---- tabla actividades IFC × APU ---- */
 function renderActIfc(){
  const tb=$('tbl-actifc').querySelector('tbody'); tb.innerHTML='';
@@ -1401,7 +1543,7 @@ function renderActIfc(){
    <td class="hint" title="${tipos.replace(/"/g,'&quot;')}">${tipos.slice(0,55)||'—'}${tipos.length>55?'…':''}</td>
    <td><input class="num" type="number" step="any" value="${a.qty??''}" style="width:64px"></td>
    <td>${a.apuUnidad||'un'}</td>
-   <td><span class="apu-link">${a.apuNombre||'⊕ buscar APU…'}</span></td>
+   <td><span class="apu-link">${a.apuNombre||'⊕ buscar APU…'}</span>${a.apuId?' <span class="apu-edit" title="Editar APU (se guarda como NUEVO en Cloudflare)" style="cursor:pointer;color:var(--accent-3)">✎</span>':''}</td>
    <td style="text-align:right">${a.apuPrecio?fmt(a.apuPrecio):'—'}</td>
    <td style="text-align:right;color:var(--accent)">${fmt((a.qty||0)*(a.apuPrecio||0))}</td>
    <td class="del">✕</td>`;
@@ -1412,6 +1554,11 @@ function renderActIfc(){
   };
   tr.querySelector('.apu-link').onclick=()=>openApuPicker(sel=>{
    a.apuId=sel.id;a.apuNombre=sel.nombre;a.apuUnidad=sel.unidad;a.apuPrecio=sel.precio;
+   renderActIfc();autosave();
+  });
+  const edA=tr.querySelector('.apu-edit');
+  if(edA)edA.onclick=()=>openApuEdit({id:a.apuId,nombre:a.apuNombre,unidad:a.apuUnidad,precio:a.apuPrecio},nuevo=>{
+   a.apuId=nuevo.id;a.apuNombre=nuevo.nombre;if(nuevo.unidad)a.apuUnidad=nuevo.unidad;a.apuPrecio=nuevo.precio;
    renderActIfc();autosave();
   });
   tr.querySelector('.del').onclick=()=>{P.actividadesIfc.splice(i,1);renderActIfc();autosave();};
@@ -1692,14 +1839,61 @@ function initIfcModal(){
  })();
  upd();
 }
+/* ---- simulación 4D: estados por fecha del slider ---- */
+let ifcHideNA=false;
+function elemActMap(){
+ const map={};
+ for(const a of P.actividadesIfc)for(const id of (a.elems||[]))map[id]=a;
+ return map;
+}
+function fechas4D(){
+ const acts=P.actividadesIfc.filter(a=>a.inicio&&(a.elems||[]).length);
+ if(!acts.length)return null;
+ let min=acts[0].inicio,max=acts[0].fin||acts[0].inicio;
+ for(const a of acts){if(a.inicio<min)min=a.inicio;const f=a.fin||a.inicio;if(f>max)max=f;}
+ return {min,max};
+}
+function apply4D(){
+ const map=elemActMap();
+ const rng=fechas4D();
+ let fecha=null;
+ if(rng){
+  const pct=parseInt($('ifc-4d').value)/100;
+  const t0=new Date(rng.min+'T12:00:00').getTime(), t1=new Date(rng.max+'T12:00:00').getTime();
+  fecha=new Date(t0+(t1-t0)*pct);
+  $('ifc-4d-fecha').textContent=fecha.toISOString().slice(0,10);
+ }else{
+  $('ifc-4d-fecha').textContent='sin fechas';
+ }
+ for(const x of ifcMeshList){
+  const a=map[x.id];
+  if(!a){ // sin actividad asignada
+   x._estado='na';
+   x.mesh.visible=!ifcHideNA;
+   continue;
+  }
+  if(!a.inicio||!fecha){x._estado='done';x.mesh.visible=true;continue;}
+  const ini=new Date(a.inicio+'T00:00:00'), fin=new Date((a.fin||a.inicio)+'T23:59:59');
+  if(fecha>=fin){x._estado='done';x.mesh.visible=true;}
+  else if(fecha>=ini){x._estado='prog';x.mesh.visible=true;}
+  else {x._estado='fut';x.mesh.visible=false;}
+ }
+}
 function refreshIfcHighlight(){
  for(const x of ifcMeshList){
   const s=ifcSel.has(x.id);
-  x.mesh.material.emissive.setHex(s?0xf4b942:0x000000);
-  x.mesh.material.emissiveIntensity=s?0.85:0;
-  x.mesh.material.opacity=s?1:x.mesh.material._op0;
+  const prog=x._estado==='prog';
+  x.mesh.material.emissive.setHex(s?0xf4b942:prog?0x9c6bff:0x000000);
+  x.mesh.material.emissiveIntensity=s?0.85:prog?0.55:0;
+  x.mesh.material.opacity=s?1:(x._estado==='na'?0.22:x.mesh.material._op0);
  }
 }
+$('ifc-4d').oninput=()=>{apply4D();refreshIfcHighlight();};
+$('ifc-toggle-na').onclick=()=>{
+ ifcHideNA=!ifcHideNA;
+ $('ifc-toggle-na-lbl').textContent=ifcHideNA?'Mostrar sin actividad':'Ocultar sin actividad';
+ apply4D();refreshIfcHighlight();
+};
 function renderIfcSelInfo(){
  const tipos={};
  for(const id of ifcSel){const e=IFC_ELEMS[id];const k=e?e.tipo:('elem '+id);tipos[k]=(tipos[k]||0)+1;}
@@ -1727,7 +1921,7 @@ function openIfcAssign(nombreActividad){
   const c=bb.getCenter(new THREE.Vector3()), s=bb.getSize(new THREE.Vector3());
   ifcView.ctr.copy(c); ifcView.dist=Math.max(s.x,s.y,s.z)*1.7||30; ifcView.upd();
  }
- ifcSel.clear(); refreshIfcHighlight(); renderIfcSelInfo();
+ ifcSel.clear(); apply4D(); refreshIfcHighlight(); renderIfcSelInfo();
  const opts=[...new Set([...(P.cronograma.actividades||[]).map(a=>a.nombre),...P.actividadesIfc.map(a=>a.nombre)])];
  $('ifc-act-sel').innerHTML=opts.length
   ?opts.map(n=>`<option ${n===nombreActividad?'selected':''}>${n.replace(/</g,'&lt;')}</option>`).join('')
