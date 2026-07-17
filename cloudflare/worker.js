@@ -4,6 +4,7 @@
  *
  * GET  /api/apus?q=texto        -> lista actividades (id, nombre, unidad, precio_total), filtro por nombre
  * GET  /api/apu/:id             -> actividad + insumos (con precios de proveedores si existen)
+ * POST /api/apus                -> crea un NUEVO APU {nombre, unidad, insumos:[{codigo,nombre,tipo,unidad,rendimiento,desperdicio,precio_unitario}]}
  * GET  /api/materiales          -> catálogo de insumos únicos con precios de proveedores
  * POST /api/precios             -> [{insumo_codigo, proveedor, precio, unidad?}] upsert precios de proveedores
  */
@@ -28,6 +29,25 @@ export default {
           ? await env.DB.prepare("SELECT id,nombre,unidad,precio_total FROM actividades WHERE nombre LIKE ? ORDER BY nombre LIMIT ?").bind(`%${q}%`, lim).all()
           : await env.DB.prepare("SELECT id,nombre,unidad,precio_total FROM actividades ORDER BY nombre LIMIT ?").bind(lim).all();
         return json(rs.results);
+      }
+
+      if (p === "/api/apus" && req.method === "POST") {
+        const b = await req.json();
+        if (!b || !b.nombre || !Array.isArray(b.insumos) || !b.insumos.length)
+          return json({ error: "se espera {nombre, unidad, insumos[]}" }, 400);
+        const insumos = b.insumos.filter(x => x.nombre && isFinite(parseFloat(x.precio_unitario)) && parseFloat(x.rendimiento) > 0);
+        if (!insumos.length) return json({ error: "sin insumos válidos (nombre, rendimiento>0, precio)" }, 400);
+        const parcial = x => Math.round(parseFloat(x.rendimiento) * (1 + (parseFloat(x.desperdicio) || 0)) * parseFloat(x.precio_unitario));
+        const total = insumos.reduce((s, x) => s + parcial(x), 0);
+        const r = await env.DB.prepare("INSERT INTO actividades(nombre,unidad,precio_total) VALUES(?,?,?)")
+          .bind(String(b.nombre).slice(0, 200), String(b.unidad || "").slice(0, 12), total).run();
+        const id = r.meta.last_row_id;
+        const stmt = env.DB.prepare("INSERT INTO insumos(actividad_id,codigo,nombre,tipo,unidad,rendimiento,desperdicio,precio_unitario,precio_parcial) VALUES(?,?,?,?,?,?,?,?,?)");
+        await env.DB.batch(insumos.map(x => stmt.bind(
+          id, String(x.codigo || "").slice(0, 24), String(x.nombre).slice(0, 160),
+          ["MO", "MQ", "MAT"].includes(x.tipo) ? x.tipo : "MAT", String(x.unidad || "").slice(0, 12),
+          parseFloat(x.rendimiento), parseFloat(x.desperdicio) || 0, parseFloat(x.precio_unitario), parcial(x))));
+        return json({ ok: true, id, nombre: b.nombre, unidad: b.unidad || "", precio_total: total });
       }
 
       const mApu = p.match(/^\/api\/apu\/(\d+)$/);
