@@ -68,7 +68,7 @@
   .empty{color:var(--text-dim);font-size:11px;padding:12px;text-align:center;font-style:italic}
   #canvas3d{width:100%;height:300px;background:#000;border:1px solid var(--line);display:block}
   /* GANTT */
-  #gantt-wrap{display:grid;grid-template-columns:430px 1fr;border:1px solid var(--line);overflow-x:auto}
+  #gantt-wrap{display:grid;grid-template-columns:474px 1fr;border:1px solid var(--line);overflow-x:auto}
   #gantt-left table{width:100%}
   #gantt-right{position:relative;background:var(--bg-0);min-width:300px}
   .g-months{display:flex;height:26px;border-bottom:1px solid var(--line);position:relative}
@@ -109,6 +109,20 @@
   <button class="btn sm primary" id="btn-save"><span class="ic">💾</span> Guardar</button>
 </div>
 <div class="flash" id="flash"></div>
+<div class="modal" id="modal-ifc">
+  <div class="box2" style="width:min(1020px,96vw)">
+    <div class="mh"><h3>Asignar actividad a elementos del IFC</h3><button class="x" id="ifc-modal-x">✕</button></div>
+    <div class="mb">
+      <div class="btnrow" style="margin-bottom:8px">
+        <div class="ctl" style="min-width:300px;flex:1"><label>Actividad</label><select id="ifc-act-sel" class="inp"></select></div>
+        <button class="btn sm" id="ifc-sel-clear" style="align-self:end"><span class="ic">⌀</span> Limpiar selección</button>
+        <button class="btn sm primary" id="ifc-asignar" style="align-self:end"><span class="ic">→</span> Asignar a la actividad</button>
+      </div>
+      <canvas id="canvas-ifc" style="width:100%;height:52vh;display:block;background:#000;border:1px solid var(--line)"></canvas>
+      <p class="hint" id="ifc-sel-info">Clic = seleccionar/deseleccionar elemento · arrastrar = rotar · rueda = zoom. Requiere haber subido el IFC en esta sesión.</p>
+    </div>
+  </div>
+</div>
 <div class="modal" id="modal-apu">
   <div class="box2">
     <div class="mh"><h3>Buscar APU — base Gobernación</h3><button class="x" id="apu-modal-x">✕</button></div>
@@ -189,7 +203,7 @@
       <p class="hint">7. Cronograma → pestaña <b>Cronograma</b> · 8. Presupuesto → pestaña <b>Presupuesto</b>. Ambos se adjuntan a la solicitud.</p>
     </div>
     <div class="box">
-      <h3><span class="dot"></span> Decenal — cuestionario Seguros Mundial</h3>
+      <h3><span class="dot"></span> Decenal — cuestionario de solicitud</h3>
       <div class="grid2">
         <div class="ctl"><label>Tomador</label><input data-p="poliza.decenal.tomador"></div>
         <div class="ctl"><label>NIT tomador</label><input data-p="poliza.decenal.tomadorNit"></div>
@@ -222,7 +236,7 @@
         <div class="ctl"><label>Entidad financiera (si aplica)</label><input data-p="poliza.decenal.entidadFinanciera"></div>
       </div>
       <div class="ctl"><label>Descripción de la obra</label><textarea data-p="poliza.decenal.descripcionObra"></textarea></div>
-      <p class="hint">Suma asegurada provisional = costo directo + otros gastos (indirectos), tomada automáticamente de la pestaña <b>Presupuesto</b>. El cuestionario completo (PDF Seguros Mundial) se diligencia con estos datos + los del modelo.</p>
+      <p class="hint">Suma asegurada provisional = costo directo + otros gastos (indirectos), tomada automáticamente de la pestaña <b>Presupuesto</b>. El formulario oficial de la aseguradora se diligencia con estos datos + los del modelo.</p>
     </div>
   </div>
 </section>
@@ -290,7 +304,7 @@
     <div id="gantt-wrap">
       <div id="gantt-left">
         <table class="tbl" id="tbl-cron">
-          <thead><tr><th>Actividad</th><th style="width:112px">Inicio</th><th style="width:52px">Días</th><th style="width:86px">Fin</th><th></th></tr></thead>
+          <thead><tr><th>Actividad</th><th style="width:112px">Inicio</th><th style="width:52px">Días</th><th style="width:86px">Fin</th><th title="Asignar elementos del IFC">3D</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -395,7 +409,7 @@
             <option value="solicitud-trc">Solicitud de cotización TRC</option>
           </select>
         </div>
-        <div class="ctl"><label>Para</label><input id="mail-para" placeholder="ingenieria@segurosmundial.com.co"></div>
+        <div class="ctl"><label>Para</label><input id="mail-para" placeholder="correo del área de ingeniería de la aseguradora"></div>
       </div>
       <div class="ctl"><label>Asunto</label><input id="mail-asunto"></div>
       <div class="ctl"><label>Cuerpo</label><textarea id="mail-cuerpo" style="min-height:260px"></textarea></div>
@@ -446,7 +460,7 @@ const ASEG=[
 
 function defaults(nombre){return{
  id:PID,nombre:nombre||PID,savedAt:null,
- model:{source:null,fileName:null,proyecto:'',direccion:'',ciudad:'Cali',niveles:[],plantasSobre:null,sotanos:null,m2Sobre:null,m2Bajo:null,areaTotal:null,alturaLibre:null,luzLibre:null,voladizo:null,numUnidades:null,cantidades:{}},
+ model:{source:null,fileName:null,proyecto:'',direccion:'',ciudad:'Cali',niveles:[],plantasSobre:null,sotanos:null,m2Sobre:null,m2Bajo:null,areaTotal:null,alturaLibre:null,luzLibre:null,voladizo:null,numUnidades:null,cantidades:{},tipos:{}},
  poliza:{tipo:'ambas',
   trc:{tomador:'',nit:'',ingresosUltimoAno:null,proyeccionIngresos:null,nominaMensual:null,actividad:'',vigenciaMeses:null,siniestralidad:'Sin siniestralidad en los últimos 5 años',direccion:'',limiteAsegurado:null},
   decenal:{tomador:'',tomadorNit:'',intermediario:'',enajenador:'',constructor:'',geotecnia:'',disenadorEstructural:'',revisorDiseno:'',supervisorTecnico:'',defectosDisenador:'No',defectosConstructor:'No',descripcionObra:'',localizacion:'',tipologia:'Viviendas en bloque',tipoVivienda:'Tradicional',numViviendas:null,estrato:null,tipoZona:'Urbana urbanización media',tipoContrato:'Privado',fechaInicio:'',fechaFin:'',estructuraVertical:'Hormigón armado',estructuraHorizontal:'Hormigón armado',cimentacion:'Zapatas',fachadas:'Revestida',cubiertas:'Plana no transitable',informeGeotecnico:'Sí',lote:'Horizontal',financiacion:'Capital propio',entidadFinanciera:''}},
@@ -569,12 +583,63 @@ function normFecha(v){
  return '';
 }
 const ELEM_RE=/^(WALL|WALLSTANDARDCASE|SLAB|COLUMN|BEAM|DOOR|WINDOW|STAIR|STAIRFLIGHT|ROOF|FOOTING|PILE|COVERING|MEMBER|PLATE|RAILING|CURTAINWALL|BUILDINGELEMENTPROXY|FLOWTERMINAL|FLOWSEGMENT|PIPESEGMENT|DUCTSEGMENT|FLOWFITTING|RAMP|ELEMENTASSEMBLY)$/;
-function parsePsiActivities(text){
+function indexIfcEntities(text){
  const ents={};
  const re=/#(\d+)\s*=\s*IFC([A-Z0-9]+)\s*\(([\s\S]*?)\)\s*;/g;
  let m;
  while((m=re.exec(text))){ents[m[1]]={t:m[2],p:m[3]};}
- const getStrs=p=>[...p.matchAll(/'((?:[^']|'')*)'/g)].map(x=>x[1].replace(/''/g,"'"));
+ return ents;
+}
+const getStrs=p=>[...p.matchAll(/'((?:[^']|'')*)'/g)].map(x=>x[1].replace(/''/g,"'"));
+const getRefs=p=>[...p.matchAll(/#(\d+)/g)].map(x=>x[1]);
+
+/* ---- TIPOS de Revit + cantidades (un / m² / ml / m³) desde quantity sets ---- */
+function parseTiposCantidades(ents){
+ // 1) cantidades individuales
+ const qty={};
+ for(const id in ents){
+  const e=ents[id];
+  if(e.t!=='QUANTITYAREA'&&e.t!=='QUANTITYLENGTH'&&e.t!=='QUANTITYVOLUME')continue;
+  const clean=e.p.replace(/#\d+/g,'').replace(/'[^']*'/g,'');
+  const nums=[...clean.matchAll(/(-?\d+\.?\d*(?:[eE][-+]?\d+)?)/g)].map(x=>parseFloat(x[1]));
+  if(!nums.length)continue;
+  qty[id]={k:e.t==='QUANTITYAREA'?'m2':e.t==='QUANTITYLENGTH'?'ml':'m3',v:nums[nums.length-1]};
+ }
+ // 2) IfcElementQuantity → medidas máximas por tipo de medida
+ const eq={};
+ for(const id in ents){
+  if(ents[id].t!=='ELEMENTQUANTITY')continue;
+  const agg={};
+  for(const r of getRefs(ents[id].p)){const q=qty[r];if(q)agg[q.k]=Math.max(agg[q.k]||0,q.v);}
+  if(Object.keys(agg).length)eq[id]=agg;
+ }
+ // 3) relación cantidades → elementos
+ const elemQ={};
+ for(const id in ents){
+  if(ents[id].t!=='RELDEFINESBYPROPERTIES')continue;
+  const refs=getRefs(ents[id].p);
+  const q=eq[refs[refs.length-1]];
+  if(!q)continue;
+  for(let i=0;i<refs.length-1;i++)if(ents[refs[i]]&&ELEM_RE.test(ents[refs[i]].t))elemQ[refs[i]]=q;
+ }
+ // 4) tipo de Revit por elemento (Name sin el id de instancia) + agregado por tipo
+ const tipos={}, elems={};
+ for(const id in ents){
+  const e=ents[id];
+  if(!ELEM_RE.test(e.t))continue;
+  const strs=getStrs(e.p);
+  const tipo=(strs[1]||e.t).replace(/:\d+$/,'');
+  const cat=CAT_MAP[e.t]||e.t;
+  const q=elemQ[id]||{};
+  elems[id]={tipo,cat};
+  const t=tipos[tipo]=tipos[tipo]||{cat,un:0,m2:0,ml:0,m3:0};
+  t.un++; t.m2+=q.m2||0; t.ml+=q.ml||0; t.m3+=q.m3||0;
+ }
+ for(const k in tipos){const t=tipos[k];t.m2=Math.round(t.m2*100)/100;t.ml=Math.round(t.ml*100)/100;t.m3=Math.round(t.m3*1000)/1000;}
+ return {tipos,elems};
+}
+
+function parsePsiActivities(ents){
  // 1) propiedades PSI_*
  const propVal={};
  for(const id in ents){
@@ -612,7 +677,7 @@ function parsePsiActivities(text){
    inicio:normFecha(props.PSI_Start),fin:normFecha(props.PSI_Finish),
    pct:parseFloat(props.PSI_PercentComplete??props.PSI_PercentCo??0)||0,
    wbs:String(props.PSI_WBS??''),tipos:{},qty:0};
-  for(let i=1;i<refs.length-1;i++){
+  for(let i=0;i<refs.length-1;i++){
    const el=ents[refs[i]];
    if(!el||!ELEM_RE.test(el.t))continue;
    const strs=getStrs(el.p);
@@ -640,8 +705,13 @@ $('file-ifc').onchange=e=>{
     areaTotal:d.areaTotal||P.model.areaTotal,
     m2Sobre:d.areaTotal&&sot===0?d.areaTotal:P.model.m2Sobre,
     proyecto:P.model.proyecto||d.proyecto});
+   // índice de entidades: tipos de Revit + cantidades + actividades PSI
+   const ents=indexIfcEntities(text);
+   const tq=parseTiposCantidades(ents);
+   IFC_ELEMS=tq.elems;
+   P.model.tipos=tq.tipos;
    // actividades PSI_* (cronograma 4D exportado desde Revit)
-   const acts=parsePsiActivities(text);
+   const acts=parsePsiActivities(ents);
    if(acts.length){
     const prev=Object.fromEntries(P.actividadesIfc.map(a=>[a.aid,a]));
     P.actividadesIfc=acts.map(a=>{
@@ -661,6 +731,8 @@ $('file-ifc').onchange=e=>{
 
 /* ---- Visor: geometría IFC real vía web-ifc (WASM) ---- */
 let ifcGeomOK=false;
+let IFC_ELEMS={};   // expressID -> {tipo, cat} (sesión)
+let IFC_MESHES=[];  // [{id: expressID, mesh}] (sesión)
 const WEBIFC_CDN='https://cdn.jsdelivr.net/npm/web-ifc@0.0.57/';
 async function loadIfcGeometry(buf){
  try{
@@ -671,9 +743,11 @@ async function loadIfcGeometry(buf){
   await api.Init();
   const mid=api.OpenModel(new Uint8Array(buf));
   const group=new THREE.Group();
+  IFC_MESHES=[];
   const flat=api.LoadAllGeometry(mid);
   for(let i=0;i<flat.size();i++){
    const fm=flat.get(i);
+   const eid=String(fm.expressID);
    for(let j=0;j<fm.geometries.size();j++){
     const pg=fm.geometries.get(j);
     const g=api.GetGeometry(mid,pg.geometryExpressID);
@@ -692,6 +766,7 @@ async function loadIfcGeometry(buf){
      color:new THREE.Color(c.x,c.y,c.z),transparent:c.w<1,opacity:Math.max(.25,c.w),side:THREE.DoubleSide}));
     mesh.applyMatrix4(new THREE.Matrix4().fromArray(pg.flatTransformation));
     group.add(mesh);
+    IFC_MESHES.push({id:eid,mesh});
    }
   }
   api.CloseModel(mid);
@@ -757,9 +832,21 @@ function renderModel(){
   <div class="stat"><span class="lbl">Fuente</span><span class="val new" style="font-size:11px">${m.fileName||'manual'}</span></div>`;
  const c=$('model-counts');
  const ks=Object.keys(m.cantidades||{});
- c.innerHTML=ks.length?'<table class="tbl"><thead><tr><th>Categoría</th><th>Cantidad</th></tr></thead><tbody>'+
-   ks.sort().map(k=>`<tr><td>${k}</td><td>${m.cantidades[k]}</td></tr>`).join('')+'</tbody></table>'
-  :'<div class="empty">Sin modelo cargado</div>';
+ const tipos=m.tipos||{};
+ const tks=Object.keys(tipos);
+ let html='';
+ if(tks.length){
+  html+='<p class="hint" style="margin-bottom:4px"><b>Tipos de Revit</b> — a cada tipo se le enlaza un APU en Presupuesto (cantidades un/m²/ml/m³ leídas de los quantity sets del IFC):</p>';
+  html+='<div style="max-height:260px;overflow:auto"><table class="tbl"><thead><tr><th>Tipo</th><th>Categoría</th><th>un</th><th>m²</th><th>ml</th><th>m³</th></tr></thead><tbody>'+
+   tks.sort().map(k=>{const t=tipos[k];return `<tr><td>${k}</td><td class="hint">${t.cat||''}</td><td>${t.un||0}</td><td>${t.m2||'—'}</td><td>${t.ml||'—'}</td><td>${t.m3||'—'}</td></tr>`;}).join('')+
+   '</tbody></table></div>';
+ }
+ if(ks.length){
+  html+='<p class="hint" style="margin:8px 0 4px"><b>Resumen por categoría:</b></p>';
+  html+='<table class="tbl"><thead><tr><th>Categoría</th><th>Elementos</th></tr></thead><tbody>'+
+   ks.sort().map(k=>`<tr><td>${k}</td><td>${m.cantidades[k]}</td></tr>`).join('')+'</tbody></table>';
+ }
+ c.innerHTML=html||'<div class="empty">Sin modelo cargado</div>';
  draw3D();
 }
 
@@ -851,53 +938,68 @@ $('file-apu').onchange=e=>{
  r.readAsBinaryString(f); e.target.value='';
 };
 
-const AUTO_APU={'Muros':'MAM-01','Losas':'EST-03','Columnas':'EST-01','Vigas':'EST-02','Puertas':'CAR-01','Ventanas':'VEN-01','Cubiertas':'CUB-01','Cimentación':'CIM-02','Aparatos MEP':'APA-01','Redes MEP':'HID-01'};
+const UNIDADES=['un','m2','ml','m3','kg','gl','vje','hc','dia'];
 
 $('btn-items-modelo').onclick=()=>{
+ const tipos=P.model.tipos||{};
+ if(Object.keys(tipos).length){
+  // una fila por TIPO de Revit — el APU se asigna al tipo
+  for(const [tipo,t] of Object.entries(tipos)){
+   if(P.presupuesto.items.some(it=>it.desc===tipo))continue;
+   P.presupuesto.items.push({desc:tipo,cat:t.cat,unidad:'un',qty:t.un,
+    qtyAuto:{un:t.un,m2:t.m2,ml:t.ml,m3:t.m3},apuNombre:'',valor:0});
+  }
+  renderItems(); autosave();
+  flash('Ítems generados por TIPO de Revit — elige la unidad (un/m²/ml/m³) y la cantidad se toma del IFC; enlaza el APU con ⊕');
+  return;
+ }
  const c=P.model.cantidades||{};
  if(!Object.keys(c).length)return flash('Primero carga un modelo en la pestaña Modelo 3D');
  for(const [cat,qty] of Object.entries(c)){
   if(cat==='Espacios')continue;
   if(P.presupuesto.items.some(it=>it.desc===cat))continue;
-  const apu=P.presupuesto.apus.find(a=>a.codigo===AUTO_APU[cat]);
-  P.presupuesto.items.push({desc:cat,unidad:apu?apu.unidad:'un',qty:qty,apu:apu?apu.codigo:'',valor:apu?apu.valor:0});
+  P.presupuesto.items.push({desc:cat,unidad:'un',qty:qty,qtyAuto:{un:qty},apuNombre:'',valor:0});
  }
  renderItems(); autosave();
- flash('Ítems generados desde el modelo — ajusta cantidades reales (el modelo da conteos, no m²/m³ exactos)');
+ flash('Ítems generados por categoría (el IFC no trae tipos) — ajusta cantidades y enlaza APUs');
 };
-$('btn-item-add').onclick=()=>{P.presupuesto.items.push({desc:'',unidad:'un',qty:1,apu:'',valor:0});renderItems();autosave();};
+$('btn-item-add').onclick=()=>{P.presupuesto.items.push({desc:'',unidad:'un',qty:1,qtyAuto:null,apuNombre:'',valor:0});renderItems();autosave();};
 
 function itemTotal(it){return (parseFloat(it.qty)||0)*(parseFloat(it.valor)||0);}
 function renderItems(){
  const tb=$('tbl-items').querySelector('tbody'); tb.innerHTML='';
- const opts='<option value="">— manual —</option>'+P.presupuesto.apus.map(a=>`<option value="${a.codigo}">${a.codigo} · ${a.descripcion.slice(0,38)} (${a.unidad}) ${fmt(a.valor)}</option>`).join('');
  P.presupuesto.items.forEach((it,i)=>{
   const tr=document.createElement('tr');
-  tr.innerHTML=`<td><input value="${it.desc||''}"></td><td><input value="${it.unidad||''}" style="width:52px"></td>
-   <td><input class="num" type="number" value="${it.qty??''}" style="width:76px"></td>
-   <td><select>${opts}</select></td>
-   <td><input class="num" type="number" value="${it.valor??''}" ${it.apu?'disabled':''}></td>
+  const unOpts=UNIDADES.map(u=>`<option ${u===(it.unidad||'un')?'selected':''}>${u}</option>`).join('');
+  const qa=it.qtyAuto||{};
+  tr.innerHTML=`<td><input value="${(it.desc||'').replace(/"/g,'&quot;')}"></td>
+   <td><select style="width:60px" title="un=${qa.un??'—'} · m2=${qa.m2??'—'} · ml=${qa.ml??'—'} · m3=${qa.m3??'—'}">${unOpts}</select></td>
+   <td><input class="num" type="number" step="any" value="${it.qty??''}" style="width:84px"></td>
+   <td><span class="apu-link">${it.apuNombre||it.apu||'⊕ buscar APU…'}</span>${it.apuUnidadApu?` <span class="hint">(${it.apuUnidadApu})</span>`:''}</td>
+   <td><input class="num" type="number" value="${it.valor??''}"></td>
    <td style="text-align:right;color:var(--accent)">${fmt(itemTotal(it))}</td>
    <td class="del">✕</td>`;
-  const [iDesc,iUnd,iQty,sApu,iVal]=[...tr.querySelectorAll('input,select')];
-  sApu.value=it.apu||'';
+  const [iDesc,iQty,iVal]=[...tr.querySelectorAll('input')];
+  const sUnd=tr.querySelector('select');
   iDesc.oninput=()=>{it.desc=iDesc.value;autosave();};
-  iUnd.oninput=()=>{it.unidad=iUnd.value;autosave();};
-  iQty.oninput=()=>{it.qty=parseFloat(iQty.value)||0;refreshTotals(tr,it);autosave();};
-  iVal.oninput=()=>{it.valor=parseFloat(iVal.value)||0;refreshTotals(tr,it);autosave();};
-  sApu.onchange=()=>{
-   it.apu=sApu.value;
-   const a=P.presupuesto.apus.find(x=>x.codigo===it.apu);
-   if(a){it.valor=a.valor;it.unidad=a.unidad;if(!it.desc)it.desc=a.descripcion;iVal.value=a.valor;iVal.disabled=true;iUnd.value=a.unidad;if(!iDesc.value)iDesc.value=a.descripcion;}
-   else iVal.disabled=false;
-   refreshTotals(tr,it);autosave();
+  sUnd.onchange=()=>{
+   it.unidad=sUnd.value;
+   // al cambiar la unidad, la cantidad se toma del IFC para ese tipo de medida
+   if(it.qtyAuto&&it.qtyAuto[it.unidad]>0){it.qty=it.qtyAuto[it.unidad];iQty.value=it.qty;}
+   tr.children[5].textContent=fmt(itemTotal(it));renderPresStats();autosave();
   };
+  iQty.oninput=()=>{it.qty=parseFloat(iQty.value)||0;tr.children[5].textContent=fmt(itemTotal(it));renderPresStats();autosave();};
+  iVal.oninput=()=>{it.valor=parseFloat(iVal.value)||0;tr.children[5].textContent=fmt(itemTotal(it));renderPresStats();autosave();};
+  tr.querySelector('.apu-link').onclick=()=>openApuPicker(sel=>{
+   it.apuId=sel.id;it.apuNombre=sel.nombre;it.apuUnidadApu=sel.unidad;it.valor=sel.precio;
+   renderItems();autosave();
+  });
   tr.querySelector('.del').onclick=()=>{P.presupuesto.items.splice(i,1);renderItems();autosave();};
   tb.appendChild(tr);
  });
+ if(!P.presupuesto.items.length)tb.innerHTML='<tr><td colspan="7" class="hint" style="font-style:italic;padding:10px">«Generar ítems desde el modelo» crea una fila por cada TIPO de Revit del IFC; a cada tipo se le enlaza su APU.</td></tr>';
  renderInd(); renderPresStats();
 }
-function refreshTotals(tr,it){tr.children[5].textContent=fmt(itemTotal(it));renderPresStats();}
 
 function renderInd(){
  const tb=$('tbl-ind').querySelector('tbody'); tb.innerHTML='';
@@ -1003,13 +1105,16 @@ function renderCron(){
  if(h>=min&&h<=max){const t=document.createElement('div');t.className='g-today';t.style.left=pct(h)+'%';right.appendChild(t);}
  acts.forEach((a,i)=>{
   const tr=document.createElement('tr');
-  tr.innerHTML=`<td><input value="${a.nombre}"></td><td><input type="date" value="${a.inicio}"></td>
+  tr.innerHTML=`<td><input value="${a.nombre.replace(/"/g,'&quot;')}"></td><td><input type="date" value="${a.inicio}"></td>
    <td><input class="num" type="number" min="1" value="${a.dur}" style="width:48px"></td>
-   <td style="color:var(--text-dim)">${finAct(a)}</td><td class="del">✕</td>`;
+   <td style="color:var(--text-dim)">${finAct(a)}</td>
+   <td class="asg" title="Asignar elementos del IFC a esta actividad" style="cursor:pointer;color:var(--viol);text-align:center;font-weight:700">◈</td>
+   <td class="del">✕</td>`;
   const [iN,iI,iD]=[...tr.querySelectorAll('input')];
   iN.oninput=()=>{a.nombre=iN.value;autosave();drawBars();};
   iI.onchange=()=>{a.inicio=iI.value;renderCron();autosave();};
   iD.oninput=()=>{a.dur=Math.max(1,parseInt(iD.value)||1);renderCron();autosave();};
+  tr.querySelector('.asg').onclick=()=>openIfcAssign(a.nombre);
   tr.querySelector('.del').onclick=()=>{acts.splice(i,1);renderCron();autosave();};
   tb.appendChild(tr);
   const row=document.createElement('div'); row.className='g-row';
@@ -1110,7 +1215,7 @@ Cordial saludo,`};
 }
 function mailSolicitudDecenal(){
  const d=P.poliza.decenal;
- return {para:'ingenieria@segurosmundial.com.co',asunto:`Solicitud cotización Seguro Decenal de Daños — ${P.model.proyecto||P.nombre}`,
+ return {para:'',asunto:`Solicitud cotización Seguro Decenal de Daños — ${P.model.proyecto||P.nombre}`,
  cuerpo:`Buen día,
 
 Solicitamos cotización del Seguro Decenal de Daños (Ley 1796 de 2016) para el siguiente proyecto. Adjuntamos los 14 documentos requeridos, incluido el cuestionario diligenciado.
@@ -1223,18 +1328,24 @@ async function loadApuBase(){
 }
 async function searchApus(q){
  if(!q||q.length<2)return [];
+ const terms=q.toUpperCase().split(/\s+/).filter(Boolean);
+ // APUs importados por Excel (si los hay) participan en la búsqueda
+ const xls=(P.presupuesto.apus||[])
+  .filter(a=>terms.every(t=>((a.codigo||'')+' '+(a.descripcion||'')).toUpperCase().includes(t)))
+  .slice(0,15)
+  .map(a=>({id:'x:'+a.codigo,nombre:a.codigo+' · '+a.descripcion,unidad:a.unidad,precio_total:a.valor}));
+ let base=[];
  if(APUSRC==='cf'){
-  try{const r=await fetch(cfUrl()+'/api/apus?q='+encodeURIComponent(q)+'&limit=60');return await r.json();}catch(e){return [];}
- }
- if(APUBASE){
-  const terms=q.toUpperCase().split(/\s+/).filter(Boolean);
-  return APUBASE.filter(a=>terms.every(t=>a.nombre.toUpperCase().includes(t))).slice(0,60)
+  try{const r=await fetch(cfUrl()+'/api/apus?q='+encodeURIComponent(q)+'&limit=60');base=await r.json();}catch(e){}
+ }else if(APUBASE){
+  base=APUBASE.filter(a=>terms.every(t=>a.nombre.toUpperCase().includes(t))).slice(0,60)
    .map(a=>({id:a.id,nombre:a.nombre,unidad:a.unidad,precio_total:a.precio_total}));
  }
- return [];
+ return [...xls,...base].slice(0,60);
 }
 const APU_INS_CACHE={};
 async function getApuInsumos(apuId){
+ if(String(apuId).startsWith('x:'))return []; // APU de Excel: sin desglose de insumos
  if(APU_INS_CACHE[apuId])return APU_INS_CACHE[apuId];
  let ins=[];
  try{
@@ -1528,6 +1639,122 @@ $('btn-mat-xls').onclick=()=>{
  const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'Materiales totales');
  XLSX.writeFile(wb,P.id+'_materiales.xlsx');
+};
+
+/* ============ VENTANA IFC: asignar actividad a elementos seleccionados ============ */
+let ifcRend=null,ifcScene=null,ifcCam=null,ifcMeshList=[],ifcSel=new Set(),ifcView=null;
+function initIfcModal(){
+ if(ifcRend)return;
+ const cv=$('canvas-ifc');
+ ifcRend=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+ ifcScene=new THREE.Scene(); ifcScene.background=new THREE.Color(0x000000);
+ ifcCam=new THREE.PerspectiveCamera(50,1,0.1,10000);
+ ifcScene.add(new THREE.AmbientLight(0xffffff,.75));
+ const dl=new THREE.DirectionalLight(0xffffff,.8); dl.position.set(40,60,25); ifcScene.add(dl);
+ // órbita simple: arrastrar = rotar, rueda = zoom
+ ifcView={yaw:0.8,pitch:0.55,dist:30,ctr:new THREE.Vector3()};
+ const upd=()=>{
+  ifcView.pitch=Math.max(0.05,Math.min(1.5,ifcView.pitch));
+  ifcCam.position.set(
+   ifcView.ctr.x+ifcView.dist*Math.cos(ifcView.pitch)*Math.cos(ifcView.yaw),
+   ifcView.ctr.y+ifcView.dist*Math.sin(ifcView.pitch),
+   ifcView.ctr.z+ifcView.dist*Math.cos(ifcView.pitch)*Math.sin(ifcView.yaw));
+  ifcCam.lookAt(ifcView.ctr);
+ };
+ ifcView.upd=upd;
+ let drag=false,px=0,py=0;
+ cv.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;cv._moved=false;});
+ window.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const dx=e.clientX-px,dy=e.clientY-py;
+  if(Math.abs(dx)+Math.abs(dy)>3)cv._moved=true;
+  ifcView.yaw+=dx*0.008; ifcView.pitch+=dy*0.008; px=e.clientX; py=e.clientY; upd();
+ });
+ window.addEventListener('pointerup',()=>drag=false);
+ cv.addEventListener('wheel',e=>{e.preventDefault();ifcView.dist*=e.deltaY>0?1.12:0.9;upd();},{passive:false});
+ cv.addEventListener('click',e=>{
+  if(cv._moved)return;
+  const r=cv.getBoundingClientRect();
+  const mouse=new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
+  const ray=new THREE.Raycaster(); ray.setFromCamera(mouse,ifcCam);
+  const hits=ray.intersectObjects(ifcMeshList.map(x=>x.mesh),false);
+  if(!hits.length)return;
+  const rec=ifcMeshList.find(x=>x.mesh===hits[0].object);
+  if(ifcSel.has(rec.id))ifcSel.delete(rec.id);else ifcSel.add(rec.id);
+  refreshIfcHighlight(); renderIfcSelInfo();
+ });
+ (function loop(){
+  requestAnimationFrame(loop);
+  if(!$('modal-ifc').classList.contains('on'))return;
+  const w=cv.clientWidth,h=cv.clientHeight||400;
+  if(cv.width!==Math.floor(w*devicePixelRatio)){ifcRend.setSize(w,h,false);ifcCam.aspect=w/h;ifcCam.updateProjectionMatrix();}
+  ifcRend.render(ifcScene,ifcCam);
+ })();
+ upd();
+}
+function refreshIfcHighlight(){
+ for(const x of ifcMeshList){
+  const s=ifcSel.has(x.id);
+  x.mesh.material.emissive.setHex(s?0xf4b942:0x000000);
+  x.mesh.material.emissiveIntensity=s?0.85:0;
+  x.mesh.material.opacity=s?1:x.mesh.material._op0;
+ }
+}
+function renderIfcSelInfo(){
+ const tipos={};
+ for(const id of ifcSel){const e=IFC_ELEMS[id];const k=e?e.tipo:('elem '+id);tipos[k]=(tipos[k]||0)+1;}
+ $('ifc-sel-info').innerHTML=ifcSel.size
+  ?`<b style="color:var(--accent)">${ifcSel.size} elemento(s):</b> ${Object.entries(tipos).map(([k,v])=>`${k} (${v})`).join(', ')}`
+  :'Clic = seleccionar/deseleccionar elemento · arrastrar = rotar · rueda = zoom.';
+}
+function openIfcAssign(nombreActividad){
+ if(!IFC_MESHES.length){flash('Primero sube el IFC en Modelo 3D (la geometría vive solo en esta sesión)');return;}
+ initIfcModal();
+ if(ifcScene._src!==IFC_MESHES){
+  if(ifcScene._grp)ifcScene.remove(ifcScene._grp);
+  ifcMeshList=[];
+  scene.updateMatrixWorld(true);
+  const g=new THREE.Group();
+  for(const {id,mesh} of IFC_MESHES){
+   const mat=new THREE.MeshLambertMaterial({color:mesh.material.color.clone(),transparent:true,opacity:mesh.material.opacity,side:THREE.DoubleSide});
+   mat._op0=mesh.material.opacity;
+   const m=new THREE.Mesh(mesh.geometry,mat);
+   m.applyMatrix4(mesh.matrixWorld);
+   ifcMeshList.push({id,mesh:m}); g.add(m);
+  }
+  ifcScene.add(g); ifcScene._grp=g; ifcScene._src=IFC_MESHES;
+  const bb=new THREE.Box3().setFromObject(g);
+  const c=bb.getCenter(new THREE.Vector3()), s=bb.getSize(new THREE.Vector3());
+  ifcView.ctr.copy(c); ifcView.dist=Math.max(s.x,s.y,s.z)*1.7||30; ifcView.upd();
+ }
+ ifcSel.clear(); refreshIfcHighlight(); renderIfcSelInfo();
+ const opts=[...new Set([...(P.cronograma.actividades||[]).map(a=>a.nombre),...P.actividadesIfc.map(a=>a.nombre)])];
+ $('ifc-act-sel').innerHTML=opts.length
+  ?opts.map(n=>`<option ${n===nombreActividad?'selected':''}>${n.replace(/</g,'&lt;')}</option>`).join('')
+  :'<option value="">(crea actividades en Cronograma o Presupuesto)</option>';
+ $('modal-ifc').classList.add('on');
+}
+$('ifc-modal-x').onclick=()=>$('modal-ifc').classList.remove('on');
+$('modal-ifc').onclick=e=>{if(e.target.id==='modal-ifc')$('modal-ifc').classList.remove('on');};
+$('ifc-sel-clear').onclick=()=>{ifcSel.clear();refreshIfcHighlight();renderIfcSelInfo();};
+$('ifc-asignar').onclick=()=>{
+ if(!ifcSel.size)return flash('Selecciona al menos un elemento haciendo clic sobre el modelo');
+ const nombre=$('ifc-act-sel').value;
+ if(!nombre)return flash('Elige una actividad');
+ const sinWbs=nombre.replace(/^.*? · /,'');
+ let a=P.actividadesIfc.find(x=>x.nombre===nombre)||P.actividadesIfc.find(x=>x.nombre===sinWbs||nombre===(x.wbs?x.wbs+' · ':'')+x.nombre);
+ if(!a){
+  const cr=(P.cronograma.actividades||[]).find(x=>x.nombre===nombre);
+  a={aid:'sel_'+Date.now().toString(36),nombre,wbs:'',inicio:cr?cr.inicio:'',fin:cr?finAct(cr):'',pct:0,tipos:{},qty:0,qtyManual:false,apuId:null,apuNombre:'',apuUnidad:'',apuPrecio:0};
+  P.actividadesIfc.push(a);
+ }
+ a.elems=[...new Set([...(a.elems||[]),...ifcSel])];
+ a.tipos={};
+ for(const id of a.elems){const e=IFC_ELEMS[id];const k=e?e.tipo:('elem '+id);a.tipos[k]=(a.tipos[k]||0)+1;}
+ if(!a.qtyManual)a.qty=a.elems.length;
+ renderActIfc(); autosave();
+ $('modal-ifc').classList.remove('on');
+ flash(`✓ ${ifcSel.size} elemento(s) asignados a «${nombre}» — la actividad quedó en Presupuesto para enlazar su APU`);
 };
 
 /* ================= GUARDAR / EXPORTAR ================= */
