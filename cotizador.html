@@ -109,6 +109,18 @@
   <button class="btn sm primary" id="btn-save"><span class="ic">💾</span> Guardar</button>
 </div>
 <div class="flash" id="flash"></div>
+<div class="modal" id="modal-wa">
+  <div class="box2" style="width:min(620px,94vw)">
+    <div class="mh"><h3>Cotizar material por WhatsApp</h3><button class="x" id="wa-x">✕</button></div>
+    <div class="mb">
+      <p class="hint" id="wa-material" style="margin-bottom:8px"></p>
+      <div class="ctl"><label>Mensaje</label><textarea id="wa-msg" style="min-height:120px"></textarea></div>
+      <p class="hint" style="margin:10px 0 4px">Enviar a (abre tu WhatsApp con el mensaje listo):</p>
+      <div class="btnrow" id="wa-btns"></div>
+      <button class="btn sm" id="wa-add" style="margin-top:8px"><span class="ic">+</span> Agregar ferretería</button>
+    </div>
+  </div>
+</div>
 <div class="modal" id="modal-apu-edit">
   <div class="box2" style="width:min(1000px,96vw)">
     <div class="mh"><h3>Editar APU — se guarda como uno NUEVO en Cloudflare</h3><button class="x" id="apuedit-x">✕</button></div>
@@ -118,7 +130,7 @@
         <div class="ctl"><label>Unidad del APU</label><input id="apuedit-unidad" class="inp"></div>
       </div>
       <div style="overflow:auto;max-height:44vh;margin-top:10px"><table class="tbl" id="tbl-apuedit">
-        <thead><tr><th>Código</th><th style="width:28%">Insumo</th><th>Tipo</th><th>Und</th><th>Rend.</th><th>Desp.</th><th>Vr. unitario</th><th>Parcial</th><th></th></tr></thead>
+        <thead><tr><th>Código</th><th style="width:26%">Insumo</th><th>Tipo</th><th>Und</th><th>Rend.</th><th>Desp.</th><th>Vr. unitario</th><th>Parcial</th><th title="Cotizar por WhatsApp">✆</th><th></th></tr></thead>
         <tbody></tbody>
       </table></div>
       <div class="btnrow" style="margin-top:10px;align-items:center">
@@ -141,12 +153,12 @@
       </div>
       <canvas id="canvas-ifc" style="width:100%;height:48vh;display:block;background:#000;border:1px solid var(--line)"></canvas>
       <div class="btnrow" style="margin-top:8px;align-items:center">
-        <button class="btn sm" id="ifc-toggle-na"><span class="ic">👁</span> <span id="ifc-toggle-na-lbl">Ocultar sin actividad</span></button>
+        <button class="btn sm" id="ifc-toggle-na"><span class="ic">👁</span> <span id="ifc-toggle-na-lbl">Mostrar solo construido a la fecha</span></button>
         <span class="hint" style="letter-spacing:1px">SIMULACIÓN 4D</span>
         <input type="range" id="ifc-4d" min="0" max="100" value="100" style="flex:1;accent-color:var(--accent)">
         <b id="ifc-4d-fecha" style="color:var(--accent);min-width:86px;text-align:right">—</b>
       </div>
-      <p class="hint" id="ifc-sel-info">Clic = seleccionar/deseleccionar elemento · arrastrar = rotar · rueda = zoom. El slider muestra lo construido a esa fecha (violeta = en ejecución); lo sin actividad se ve translúcido.</p>
+      <p class="hint" id="ifc-sel-info">Clic = seleccionar/deseleccionar elemento · arrastrar = rotar · rueda = zoom. El modelo completo siempre es visible; con «Mostrar solo construido a la fecha» se ven únicamente los elementos con actividad asignada construidos hasta la fecha del slider (violeta = en ejecución).</p>
     </div>
   </div>
 </div>
@@ -456,6 +468,16 @@
       </div>
       <p class="hint" id="smtp-status">Verificando configuración SMTP…</p>
       <p class="hint">El correo de <b>solicitud decenal</b> solo se habilita cuando el checklist de documentos está al 100%. El de <b>avance</b> puedes enviarlo en cualquier momento con el estado actual de los entregables. Para SMTP crea <b>webapp/config.email.json</b> (ver config.email.example.json) con una App Password de Gmail.</p>
+      <h3 style="margin-top:8px"><span class="dot"></span> Directorio de proveedores de materiales</h3>
+      <p class="hint">Marca los proveedores y pulsa «Usar seleccionados» para ponerlos en el <b>Para</b>. Los correos se guardan en este navegador: complétalos/verifícalos una vez desde la página oficial de contacto (link 🌐) — no vienen prellenados para no enviar a direcciones erradas.</p>
+      <div style="overflow:auto;max-height:300px"><table class="tbl" id="tbl-provmail">
+        <thead><tr><th></th><th>Empresa</th><th>Categoría</th><th style="width:38%">Correo</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <div class="btnrow">
+        <button class="btn sm primary" id="btn-provmail-usar"><span class="ic">→</span> Usar seleccionados en «Para»</button>
+        <button class="btn sm" id="btn-provmail-add"><span class="ic">+</span> Agregar empresa</button>
+      </div>
     </div>
   </div>
 </section>
@@ -831,29 +853,48 @@ async function loadIfcGeometry(buf){
   const group=new THREE.Group();
   IFC_MESHES=[];
   const flat=api.LoadAllGeometry(mid);
+  // carga liviana: TODOS los trozos de un elemento se fusionan en UNA sola malla
+  // (transformaciones horneadas en los vértices, matrixAutoUpdate off)
+  const M=new THREE.Matrix4(), V=new THREE.Vector3();
   for(let i=0;i<flat.size();i++){
    const fm=flat.get(i);
    const eid=String(fm.expressID);
+   const chunks=[]; let totV=0, totI=0, color=null;
    for(let j=0;j<fm.geometries.size();j++){
     const pg=fm.geometries.get(j);
     const g=api.GetGeometry(mid,pg.geometryExpressID);
     const verts=api.GetVertexArray(g.GetVertexData(),g.GetVertexDataSize());
     const idx=api.GetIndexArray(g.GetIndexData(),g.GetIndexDataSize());
-    const n=verts.length/6;
-    const pos=new Float32Array(n*3), nor=new Float32Array(n*3);
-    for(let k=0;k<n;k++){pos[k*3]=verts[k*6];pos[k*3+1]=verts[k*6+1];pos[k*3+2]=verts[k*6+2];
-     nor[k*3]=verts[k*6+3];nor[k*3+1]=verts[k*6+4];nor[k*3+2]=verts[k*6+5];}
-    const geo=new THREE.BufferGeometry();
-    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    geo.setAttribute('normal',new THREE.BufferAttribute(nor,3));
-    geo.setIndex(new THREE.BufferAttribute(new Uint32Array(idx),1));
-    const c=pg.color||{x:.6,y:.6,z:.65,w:1};
-    const mesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({
-     color:new THREE.Color(c.x,c.y,c.z),transparent:c.w<1,opacity:Math.max(.25,c.w),side:THREE.DoubleSide}));
-    mesh.applyMatrix4(new THREE.Matrix4().fromArray(pg.flatTransformation));
-    group.add(mesh);
-    IFC_MESHES.push({id:eid,mesh});
+    chunks.push({verts:verts.slice(),idx:idx.slice(),mat:[...pg.flatTransformation]});
+    totV+=verts.length/6; totI+=idx.length;
+    if(!color)color=pg.color;
    }
+   if(!totV)continue;
+   const pos=new Float32Array(totV*3), nor=new Float32Array(totV*3);
+   const index=totV>65535?new Uint32Array(totI):new Uint16Array(totI);
+   let vo=0, io=0;
+   for(const c of chunks){
+    M.fromArray(c.mat);
+    const n=c.verts.length/6;
+    for(let k=0;k<n;k++){
+     V.set(c.verts[k*6],c.verts[k*6+1],c.verts[k*6+2]).applyMatrix4(M);
+     pos[(vo+k)*3]=V.x; pos[(vo+k)*3+1]=V.y; pos[(vo+k)*3+2]=V.z;
+     V.set(c.verts[k*6+3],c.verts[k*6+4],c.verts[k*6+5]).transformDirection(M);
+     nor[(vo+k)*3]=V.x; nor[(vo+k)*3+1]=V.y; nor[(vo+k)*3+2]=V.z;
+    }
+    for(let k=0;k<c.idx.length;k++)index[io+k]=c.idx[k]+vo;
+    vo+=n; io+=c.idx.length;
+   }
+   const geo=new THREE.BufferGeometry();
+   geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+   geo.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+   geo.setIndex(new THREE.BufferAttribute(index,1));
+   const c0=color||{x:.6,y:.6,z:.65,w:1};
+   const mesh=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({
+    color:new THREE.Color(c0.x,c0.y,c0.z),transparent:c0.w<1,opacity:Math.max(.25,c0.w),side:THREE.DoubleSide}));
+   mesh.matrixAutoUpdate=false;
+   group.add(mesh);
+   IFC_MESHES.push({id:eid,mesh});
   }
   api.CloseModel(mid);
   if(!group.children.length)throw new Error('el IFC no trae geometría');
@@ -941,6 +982,7 @@ let scene,camera,renderer,rot=0;
 function init3D(){
  const cv=$('canvas3d');
  renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); // carga más liviana
  scene=new THREE.Scene(); scene.background=new THREE.Color(0x000000);
  camera=new THREE.PerspectiveCamera(50,1,0.1,1000);
  scene.add(new THREE.AmbientLight(0xffffff,.7));
@@ -1516,6 +1558,50 @@ $('apu-search').oninput=()=>{clearTimeout(apuT);apuT=setTimeout(async()=>{
  });
 },280);};
 
+/* ---- cotizar un material por WhatsApp (ferreterías guardadas) ---- */
+const FERRE_KEY='cotizador_ferreterias_wa';
+function ferreterias(){
+ try{const v=JSON.parse(localStorage.getItem(FERRE_KEY)||'null');if(Array.isArray(v)&&v.length)return v;}catch(e){}
+ return [
+  {nombre:'Ferretería Metro',tel:'573187855308'},
+  {nombre:'Ferretería La Mayor',tel:'573128312937'},
+  {nombre:'Ferretería El Ingenio',tel:'573185231499'}
+ ];
+}
+function saveFerreterias(list){localStorage.setItem(FERRE_KEY,JSON.stringify(list));}
+function openWaCotizar(ins){
+ $('wa-material').innerHTML=`Material: <b style="color:var(--accent)">${ins.nombre}</b> (${ins.unidad||'un'})`;
+ const mat=(P.materiales||[]).find(m=>(ins.codigo&&m.codigo===ins.codigo)||m.nombre===ins.nombre);
+ const cant=mat?` Cantidad estimada del proyecto: ${(mat.cant||0).toLocaleString('es-CO')} ${mat.unidad||''}.`:'';
+ $('wa-msg').value=`Buen día. Para el proyecto ${P.model.proyecto||P.nombre} necesitamos cotizar:
+
+- ${ins.nombre} — unidad: ${ins.unidad||'un'}.${cant}
+
+¿Me indican por favor precio unitario (IVA discriminado), disponibilidad y tiempo de entrega? Gracias.`;
+ renderWaBtns();
+ $('modal-wa').classList.add('on');
+}
+function renderWaBtns(){
+ const wrap=$('wa-btns'); wrap.innerHTML='';
+ ferreterias().forEach(f=>{
+  const b=document.createElement('button');
+  b.className='btn viol sm';
+  b.innerHTML=`<span class="ic">✆</span> ${f.nombre} <span class="hint" style="margin-left:4px">+${f.tel}</span>`;
+  b.onclick=()=>window.open('https://wa.me/'+f.tel+'?text='+encodeURIComponent($('wa-msg').value),'_blank','noopener');
+  wrap.appendChild(b);
+ });
+}
+$('wa-x').onclick=()=>$('modal-wa').classList.remove('on');
+$('modal-wa').onclick=e=>{if(e.target.id==='modal-wa')$('modal-wa').classList.remove('on');};
+$('wa-add').onclick=()=>{
+ const nombre=prompt('Nombre de la ferretería:'); if(!nombre)return;
+ let tel=prompt('Número de WhatsApp (ej: 3001234567 o 573001234567):'); if(!tel)return;
+ tel=tel.replace(/\D/g,''); if(tel.length===10)tel='57'+tel;
+ const list=ferreterias(); list.push({nombre:nombre.trim(),tel});
+ saveFerreterias(list); renderWaBtns();
+ flash('Ferretería guardada — quedará disponible en todas las cotizaciones');
+};
+
 /* ---- editor de APU: se guarda como NUEVO en Cloudflare ---- */
 let APUEDIT={insumos:[],cb:null,dirty:false};
 async function openApuEdit(apu,cb){
@@ -1542,6 +1628,7 @@ function renderApuEdit(){
    <td><input class="num" type="number" step="any" value="${x.desperdicio??0}" style="width:58px"></td>
    <td><input class="num" type="number" value="${x.precio_unitario??''}" style="width:98px"></td>
    <td style="text-align:right;color:var(--accent)">${fmt(insParcial(x))}</td>
+   <td class="wa" title="Cotizar este material por WhatsApp a las ferreterías" style="cursor:pointer;text-align:center;color:var(--ok);font-weight:700">✆</td>
    <td class="del">✕</td>`;
   const [iC,iN,iU,iR,iD,iP]=[...tr.querySelectorAll('input')];
   const sT=tr.querySelector('select');
@@ -1553,6 +1640,7 @@ function renderApuEdit(){
   iR.oninput=()=>{x.rendimiento=parseFloat(iR.value)||0;up();};
   iD.oninput=()=>{x.desperdicio=parseFloat(iD.value)||0;up();};
   iP.oninput=()=>{x.precio_unitario=parseFloat(iP.value)||0;up();};
+  tr.querySelector('.wa').onclick=()=>openWaCotizar(x);
   tr.querySelector('.del').onclick=()=>{APUEDIT.insumos.splice(i,1);APUEDIT.dirty=true;renderApuEdit();};
   tb.appendChild(tr);
  });
@@ -1872,6 +1960,7 @@ function initIfcModal(){
  if(ifcRend)return;
  const cv=$('canvas-ifc');
  ifcRend=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+ ifcRend.setPixelRatio(Math.min(devicePixelRatio,1.5)); // carga más liviana
  ifcScene=new THREE.Scene(); ifcScene.background=new THREE.Color(0x000000);
  ifcCam=new THREE.PerspectiveCamera(50,1,0.1,10000);
  ifcScene.add(new THREE.AmbientLight(0xffffff,.75));
@@ -1917,8 +2006,9 @@ function initIfcModal(){
  })();
  upd();
 }
-/* ---- simulación 4D: estados por fecha del slider ---- */
-let ifcHideNA=false;
+/* ---- simulación 4D: por defecto el modelo completo es visible;
+       el toggle muestra SOLO lo asignado construido a la fecha del slider ---- */
+let ifc4dOnly=false;
 function elemActMap(){
  const map={};
  for(const a of P.actividadesIfc)for(const id of (a.elems||[]))map[id]=a;
@@ -1945,11 +2035,13 @@ function apply4D(){
  }
  for(const x of ifcMeshList){
   const a=map[x.id];
-  if(!a){ // sin actividad asignada
-   x._estado='na';
-   x.mesh.visible=!ifcHideNA;
+  if(!ifc4dOnly){ // modo normal: TODO el modelo visible
+   x._estado=a?'asig':'na';
+   x.mesh.visible=true;
    continue;
   }
+  // modo "solo construido a la fecha": sin actividad = oculto
+  if(!a){x._estado='na';x.mesh.visible=false;continue;}
   if(!a.inicio||!fecha){x._estado='done';x.mesh.visible=true;continue;}
   const ini=new Date(a.inicio+'T00:00:00'), fin=new Date((a.fin||a.inicio)+'T23:59:59');
   if(fecha>=fin){x._estado='done';x.mesh.visible=true;}
@@ -1963,13 +2055,13 @@ function refreshIfcHighlight(){
   const prog=x._estado==='prog';
   x.mesh.material.emissive.setHex(s?0xf4b942:prog?0x9c6bff:0x000000);
   x.mesh.material.emissiveIntensity=s?0.85:prog?0.55:0;
-  x.mesh.material.opacity=s?1:(x._estado==='na'?0.22:x.mesh.material._op0);
+  x.mesh.material.opacity=s?1:x.mesh.material._op0;
  }
 }
 $('ifc-4d').oninput=()=>{apply4D();refreshIfcHighlight();};
 $('ifc-toggle-na').onclick=()=>{
- ifcHideNA=!ifcHideNA;
- $('ifc-toggle-na-lbl').textContent=ifcHideNA?'Mostrar sin actividad':'Ocultar sin actividad';
+ ifc4dOnly=!ifc4dOnly;
+ $('ifc-toggle-na-lbl').textContent=ifc4dOnly?'Mostrar todo el modelo':'Mostrar solo construido a la fecha';
  apply4D();refreshIfcHighlight();
 };
 function renderIfcSelInfo(){
@@ -2033,6 +2125,63 @@ $('ifc-asignar').onclick=()=>{
  flash(`✓ ${ifcSel.size} elemento(s) asignados a «${nombre}» — la actividad quedó en Presupuesto para enlazar su APU`);
 };
 
+/* ============ DIRECTORIO DE PROVEEDORES (correo) ============ */
+const PROVMAIL_KEY='cotizador_proveedores_correo';
+const PROVMAIL_DEF=[
+ {sel:false,nombre:'Concretos Argos',cat:'Concretera / cementos',correo:'',web:'https://colombia.argos.co/contactenos/'},
+ {sel:false,nombre:'Cemex Colombia',cat:'Concretera / cementos',correo:'',web:'https://www.cemexcolombia.com/contacto'},
+ {sel:false,nombre:'Holcim Colombia',cat:'Concretera / cementos',correo:'',web:'https://www.holcim.com.co'},
+ {sel:false,nombre:'Ultracem',cat:'Cementos',correo:'',web:'https://ultracem.co'},
+ {sel:false,nombre:'Cementos San Marcos',cat:'Cementos (Valle)',correo:'',web:'https://www.cementossanmarcos.com'},
+ {sel:false,nombre:'Ternium Colombia',cat:'Acería / aceros',correo:'',web:'https://co.ternium.com'},
+ {sel:false,nombre:'Gerdau Diaco',cat:'Acería / aceros',correo:'',web:'https://www.gerdau.com.co'},
+ {sel:false,nombre:'Acerías Paz del Río',cat:'Acería / aceros',correo:'',web:'https://www.pazdelrio.com.co'},
+ {sel:false,nombre:'Ladrillera Santafé',cat:'Ladrillera',correo:'',web:'https://santafe.com.co/contacto/'},
+ {sel:false,nombre:'Ladrillera Meléndez (Cali)',cat:'Ladrillera',correo:'',web:'https://www.ladrilleramelendez.com.co'},
+ {sel:false,nombre:'Homecenter / Sodimac Venta Empresas',cat:'Ferretería / gran superficie',correo:'',web:'https://www.homecenter.com.co'},
+ {sel:false,nombre:'EPA Colombia',cat:'Ferretería / gran superficie',correo:'',web:'https://www.epacolombia.com'},
+ {sel:false,nombre:'Sumatec',cat:'Ferretería industrial',correo:'',web:'https://www.sumatec.co'},
+ {sel:false,nombre:'Eternit Colombia',cat:'Cubiertas / fibrocemento',correo:'',web:'https://www.eternit.com.co'},
+ {sel:false,nombre:'Corona',cat:'Acabados / sanitarios',correo:'',web:'https://www.corona.co'},
+ {sel:false,nombre:'Pintuco',cat:'Pinturas',correo:'',web:'https://www.pintuco.com.co'},
+ {sel:false,nombre:'Ferretería Metro',cat:'Ferretería local (WA +57 318 785 5308)',correo:'',web:''},
+ {sel:false,nombre:'Ferretería La Mayor',cat:'Ferretería local (WA +57 312 831 2937)',correo:'',web:''},
+ {sel:false,nombre:'Ferretería El Ingenio',cat:'Ferretería local (WA +57 318 523 1499)',correo:'',web:''}
+];
+let PROVMAIL=(()=>{try{const v=JSON.parse(localStorage.getItem(PROVMAIL_KEY)||'null');if(Array.isArray(v)&&v.length)return v;}catch(e){}return PROVMAIL_DEF.map(x=>({...x}));})();
+function savePM(){localStorage.setItem(PROVMAIL_KEY,JSON.stringify(PROVMAIL));}
+function renderProvMail(){
+ const tb=$('tbl-provmail').querySelector('tbody'); tb.innerHTML='';
+ PROVMAIL.forEach((p,i)=>{
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td><input type="checkbox" ${p.sel?'checked':''}></td>
+   <td>${p.nombre}${p.web?` <a href="${p.web}" target="_blank" rel="noopener" title="página oficial / contacto" style="color:var(--accent-3)">🌐</a>`:''}</td>
+   <td class="hint">${p.cat}</td>
+   <td><input value="${(p.correo||'').replace(/"/g,'&quot;')}" placeholder="correo@empresa.com"></td>
+   <td class="del">✕</td>`;
+  const [chk,mail]=[...tr.querySelectorAll('input')];
+  chk.onchange=()=>{p.sel=chk.checked;savePM();};
+  mail.oninput=()=>{p.correo=mail.value.trim();savePM();};
+  tr.querySelector('.del').onclick=()=>{PROVMAIL.splice(i,1);savePM();renderProvMail();};
+  tb.appendChild(tr);
+ });
+}
+$('btn-provmail-usar').onclick=()=>{
+ const sel=PROVMAIL.filter(p=>p.sel&&p.correo);
+ const sinCorreo=PROVMAIL.filter(p=>p.sel&&!p.correo).length;
+ if(!sel.length){flash(sinCorreo?'Los proveedores marcados no tienen correo — complétalos primero (link 🌐 para buscarlo)':'Marca al menos un proveedor con correo');return;}
+ $('mail-para').value=sel.map(p=>p.correo).join(', ');
+ $('mail-para').dataset.auto='0';
+ flash(sel.length+' destinatario(s) puestos en «Para»'+(sinCorreo?` — ${sinCorreo} marcados sin correo se omitieron`:''));
+};
+$('btn-provmail-add').onclick=()=>{
+ const nombre=prompt('Nombre de la empresa:'); if(!nombre)return;
+ const cat=prompt('Categoría (ferretería, acería, concretera, ladrillera…):')||'Proveedor';
+ const correo=(prompt('Correo (opcional):')||'').trim();
+ PROVMAIL.push({sel:true,nombre:nombre.trim(),cat,correo,web:''});
+ savePM(); renderProvMail();
+};
+
 /* ================= GUARDAR / EXPORTAR ================= */
 function download(content,name,mime){
  const a=document.createElement('a');
@@ -2054,6 +2203,7 @@ renderDocs();
 renderAseg();
 renderMat();
 regenMail();
+renderProvMail();
 loadApuBase();
 const tabQ=QS.get('tab');
 if(tabQ){const b=document.querySelector(`.tabbtn[data-tab="${tabQ}"]`);if(b)b.click();}
