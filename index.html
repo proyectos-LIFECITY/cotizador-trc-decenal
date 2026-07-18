@@ -25,9 +25,9 @@
   #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
   .card{background:var(--bg-2);border:1px solid var(--line);border-left:3px solid var(--viol);padding:14px;display:flex;flex-direction:column;gap:7px;cursor:pointer;position:relative}
   .card:hover{background:#212a3b;border-color:var(--accent)}
-  .card .t{font-family:var(--display);font-weight:600;font-size:14px;padding-right:20px}
+  .card .t{font-family:var(--display);font-weight:600;font-size:14px;padding-right:82px}
   .card .m{font-size:10px;color:var(--text-dim)}.card .m b{color:var(--text)}
-  .card .del{position:absolute;top:10px;right:11px;color:var(--text-dim)}.card .del:hover{color:var(--accent-2)}
+  .card .del{position:absolute;top:9px;right:9px;color:var(--text-dim);font-size:10px;border:1px solid var(--line);border-radius:6px;padding:3px 7px;background:var(--bg-1)}.card .del:hover{color:var(--accent-2);border-color:var(--accent-2)}
   .card .pills{display:flex;gap:6px;flex-wrap:wrap}
   .pill{display:inline-block;padding:2px 8px;border-radius:9px;font-size:9px;letter-spacing:.5px;background:rgba(156,107,255,.18);color:var(--viol)}
   .pill.ok{background:rgba(107,217,107,.18);color:var(--ok)}
@@ -78,10 +78,14 @@ function render(){
       <div class="m">Presupuesto: <b>${fmt(dirTot+indTot)}</b> · Modelo: <b>${(p.model&&p.model.fileName)||'sin modelo'}</b></div>
       <div class="m">Guardado: <b>${p.savedAt?new Date(p.savedAt).toLocaleString('es-CO'):'—'}</b></div>
       <div class="bar"><span style="width:${pct}%"></span></div>
-      <div class="del" title="Eliminar">✕</div>`;
+      <div class="del" title="Eliminar proyecto">🗑 Eliminar</div>`;
     card.onclick=e=>{
       if(e.target.classList.contains('del')){
-        if(confirm(`¿Eliminar el proyecto "${p.nombre||k}"?`)){const mm=read();delete mm[k];write(mm);render();}
+        if(confirm(`¿Eliminar el proyecto "${p.nombre||k}"? Esta acción no se puede deshacer.`)){
+          const mm=read();delete mm[k];write(mm);
+          fetch('/api/delete-project',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:k})}).catch(()=>{});
+          render();
+        }
         return;
       }
       location.href='cotizador.html?id='+encodeURIComponent(k);

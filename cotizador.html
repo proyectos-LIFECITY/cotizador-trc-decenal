@@ -106,6 +106,7 @@
   <button class="tabbtn" data-tab="correo"><span class="ic">✉</span> Correo</button>
   <div class="grow"></div>
   <button class="btn sm" id="btn-export-json"><span class="ic">⇓</span> JSON</button>
+  <button class="btn sm" id="btn-delete" title="Eliminar este proyecto"><span class="ic" style="color:var(--accent-2)">🗑</span> Eliminar</button>
   <button class="btn sm primary" id="btn-save"><span class="ic">💾</span> Guardar</button>
 </div>
 <div class="flash" id="flash"></div>
@@ -158,7 +159,7 @@
         <input type="range" id="ifc-4d" min="0" max="100" value="100" style="flex:1;accent-color:var(--accent)">
         <b id="ifc-4d-fecha" style="color:var(--accent);min-width:86px;text-align:right">—</b>
       </div>
-      <p class="hint" id="ifc-sel-info">Clic = seleccionar/deseleccionar elemento · arrastrar = rotar · rueda = zoom. El modelo completo siempre es visible; con «Mostrar solo construido a la fecha» se ven únicamente los elementos con actividad asignada construidos hasta la fecha del slider (violeta = en ejecución).</p>
+      <p class="hint" id="ifc-sel-info">Clic = seleccionar el elemento y fijarlo como centro de giro · arrastrar = rotar · Shift/clic-derecho + arrastrar = desplazar · rueda = zoom. El modelo completo siempre es visible; con «Mostrar solo construido a la fecha» se ven únicamente los elementos con actividad asignada construidos hasta la fecha del slider (violeta = en ejecución).</p>
     </div>
   </div>
 </div>
@@ -192,6 +193,7 @@
     <div class="box">
       <h3><span class="dot"></span> Esquema volumétrico</h3>
       <canvas id="canvas3d"></canvas>
+      <p class="hint">Clic sobre un objeto = fijarlo como centro de giro · arrastrar = rotar · Shift/clic-derecho + arrastrar = desplazar · rueda = zoom.</p>
       <h3><span class="dot"></span> Datos de la obra (editables)</h3>
       <div class="grid2">
         <div class="ctl"><label>Nombre del proyecto</label><input data-p="model.proyecto"></div>
@@ -909,8 +911,7 @@ async function loadIfcGeometry(buf){
   if(scene._group)scene.remove(scene._group);
   scene._group=wrap; scene.add(wrap);
   const dmax=Math.max(size.x,size.y,size.z)||10;
-  camera.position.set(dmax*1.15,dmax*.85,dmax*1.15);
-  camera.lookAt(0,size.y*.4,0);
+  if(mainView)mainView.frame(new THREE.Vector3(0,size.y*0.4,0),dmax*1.7);
   ifcGeomOK=true;
   flash('Visor: geometría real del IFC cargada ✓');
  }catch(err){
@@ -977,21 +978,89 @@ function renderModel(){
  draw3D();
 }
 
+/* ============ ÓRBITA reutilizable: pivote-al-clic + zoom + pan ============ */
+function makePivotMarker(){
+ const g=new THREE.Group();
+ const mk=(ax)=>{
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1,6),
+   new THREE.MeshBasicMaterial({color:0xf4b942,depthTest:false,transparent:true,opacity:.9}));
+  m.renderOrder=999;
+  if(ax==='x')m.rotation.z=Math.PI/2; if(ax==='z')m.rotation.x=Math.PI/2;
+  return m;
+ };
+ g.add(mk('x'),mk('y'),mk('z')); g.visible=false; return g;
+}
+function attachOrbit(canvas,camera,scene,opts={}){
+ const view={yaw:opts.yaw??0.8,pitch:opts.pitch??0.6,dist:opts.dist??30,ctr:new THREE.Vector3()};
+ const marker=makePivotMarker(); scene.add(marker);
+ const upd=()=>{
+  view.pitch=Math.max(0.04,Math.min(1.52,view.pitch));
+  view.dist=Math.max(0.3,view.dist);
+  camera.position.set(
+   view.ctr.x+view.dist*Math.cos(view.pitch)*Math.cos(view.yaw),
+   view.ctr.y+view.dist*Math.sin(view.pitch),
+   view.ctr.z+view.dist*Math.cos(view.pitch)*Math.sin(view.yaw));
+  camera.lookAt(view.ctr);
+  marker.position.copy(view.ctr);
+  const s=view.dist*0.03; marker.scale.set(s,s,s);
+ };
+ view.upd=upd;
+ view.setPivot=p=>{marker.visible=true;view.ctr.copy(p);upd();};
+ view.frame=(center,dist,keepAngle)=>{view.ctr.copy(center);view.dist=dist;if(!keepAngle){view.yaw=0.8;view.pitch=0.6;}upd();};
+ let drag=false,px=0,py=0,pan=false;
+ const right=new THREE.Vector3(),wup=new THREE.Vector3(0,1,0),fwd=new THREE.Vector3();
+ canvas.addEventListener('pointerdown',e=>{drag=true;pan=(e.button===2||e.shiftKey);px=e.clientX;py=e.clientY;canvas._moved=false;});
+ window.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const dx=e.clientX-px,dy=e.clientY-py;
+  if(Math.abs(dx)+Math.abs(dy)>3)canvas._moved=true;
+  if(pan){
+   camera.getWorldDirection(fwd); right.crossVectors(fwd,wup).normalize();
+   const k=view.dist*0.0016;
+   view.ctr.addScaledVector(right,-dx*k); view.ctr.addScaledVector(wup,dy*k);
+  }else{view.yaw+=dx*0.008; view.pitch+=dy*0.008;}
+  px=e.clientX; py=e.clientY; upd();
+ });
+ window.addEventListener('pointerup',()=>{drag=false;pan=false;});
+ canvas.addEventListener('contextmenu',e=>e.preventDefault());
+ canvas.addEventListener('wheel',e=>{e.preventDefault();view.dist*=e.deltaY>0?1.12:0.9;upd();},{passive:false});
+ return view;
+}
+// pivote = centro del objeto clicado (world bbox); devuelve true si golpeó algo
+function pivotOnClick(canvas,e,camera,view,objects){
+ if(canvas._moved)return null;
+ camera.updateMatrixWorld(true); // la cámara puede tener matrixWorld desactualizada tras lookAt
+ const r=canvas.getBoundingClientRect();
+ const mouse=new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
+ const ray=new THREE.Raycaster(); ray.setFromCamera(mouse,camera);
+ const hits=ray.intersectObjects(objects,false);
+ if(!hits.length)return null;
+ const obj=hits[0].object;
+ const c=new THREE.Box3().setFromObject(obj).getCenter(new THREE.Vector3());
+ view.setPivot(c);
+ return obj;
+}
+
 /* ============ MODELO: esquema volumétrico Three.js ============ */
-let scene,camera,renderer,rot=0;
+let scene,camera,renderer,mainView;
 function init3D(){
  const cv=$('canvas3d');
  renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5)); // carga más liviana
  scene=new THREE.Scene(); scene.background=new THREE.Color(0x000000);
- camera=new THREE.PerspectiveCamera(50,1,0.1,1000);
+ camera=new THREE.PerspectiveCamera(50,1,0.1,100000);
  scene.add(new THREE.AmbientLight(0xffffff,.7));
  const dl=new THREE.DirectionalLight(0xffffff,.8); dl.position.set(30,50,20); scene.add(dl);
+ mainView=attachOrbit(cv,camera,scene,{dist:30}); mainView.upd();
+ cv.addEventListener('click',e=>{
+  if(!scene._group)return;
+  const objs=[]; scene._group.traverse(o=>{if(o.isMesh)objs.push(o);});
+  const hit=pivotOnClick(cv,e,camera,mainView,objs);
+  if(hit)flash('Centro de rotación fijado en el objeto');
+ });
  const resize=()=>{const w=cv.clientWidth,h=cv.clientHeight||300;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();};
  window.addEventListener('resize',resize);resize();
- (function anim(){requestAnimationFrame(anim);rot+=0.004;
-  if(scene._group){scene._group.rotation.y=rot;}
-  renderer.render(scene,camera);})();
+ (function anim(){requestAnimationFrame(anim);renderer.render(scene,camera);})();
 }
 function draw3D(){
  if(!scene||ifcGeomOK)return; // si hay geometría IFC real, no pisarla con el esquema
@@ -1014,8 +1083,7 @@ function draw3D(){
  const grid=new THREE.GridHelper(lado*3,12,0x2a3548,0x1a2230); g.add(grid);
  scene._group=g; scene.add(g);
  const hMax=Math.max(...niveles.map(n=>n.elev))+alto, hMin=Math.min(0,...niveles.map(n=>n.elev));
- camera.position.set(lado*1.9,(hMax-hMin)*0.9+lado*0.7,lado*1.9);
- camera.lookAt(0,(hMax+hMin)/2,0);
+ if(mainView)mainView.frame(new THREE.Vector3(0,(hMax+hMin)/2,0),Math.max(lado*2.6,(hMax-hMin)*1.3));
 }
 init3D();
 
@@ -1965,35 +2033,12 @@ function initIfcModal(){
  ifcCam=new THREE.PerspectiveCamera(50,1,0.1,10000);
  ifcScene.add(new THREE.AmbientLight(0xffffff,.75));
  const dl=new THREE.DirectionalLight(0xffffff,.8); dl.position.set(40,60,25); ifcScene.add(dl);
- // órbita simple: arrastrar = rotar, rueda = zoom
- ifcView={yaw:0.8,pitch:0.55,dist:30,ctr:new THREE.Vector3()};
- const upd=()=>{
-  ifcView.pitch=Math.max(0.05,Math.min(1.5,ifcView.pitch));
-  ifcCam.position.set(
-   ifcView.ctr.x+ifcView.dist*Math.cos(ifcView.pitch)*Math.cos(ifcView.yaw),
-   ifcView.ctr.y+ifcView.dist*Math.sin(ifcView.pitch),
-   ifcView.ctr.z+ifcView.dist*Math.cos(ifcView.pitch)*Math.sin(ifcView.yaw));
-  ifcCam.lookAt(ifcView.ctr);
- };
- ifcView.upd=upd;
- let drag=false,px=0,py=0;
- cv.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;cv._moved=false;});
- window.addEventListener('pointermove',e=>{
-  if(!drag)return;
-  const dx=e.clientX-px,dy=e.clientY-py;
-  if(Math.abs(dx)+Math.abs(dy)>3)cv._moved=true;
-  ifcView.yaw+=dx*0.008; ifcView.pitch+=dy*0.008; px=e.clientX; py=e.clientY; upd();
- });
- window.addEventListener('pointerup',()=>drag=false);
- cv.addEventListener('wheel',e=>{e.preventDefault();ifcView.dist*=e.deltaY>0?1.12:0.9;upd();},{passive:false});
+ // órbita compartida: arrastrar=rotar, rueda=zoom, shift/derecho=pan, clic=pivote+selección
+ ifcView=attachOrbit(cv,ifcCam,ifcScene,{dist:30});
  cv.addEventListener('click',e=>{
-  if(cv._moved)return;
-  const r=cv.getBoundingClientRect();
-  const mouse=new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
-  const ray=new THREE.Raycaster(); ray.setFromCamera(mouse,ifcCam);
-  const hits=ray.intersectObjects(ifcMeshList.map(x=>x.mesh),false);
-  if(!hits.length)return;
-  const rec=ifcMeshList.find(x=>x.mesh===hits[0].object);
+  const hit=pivotOnClick(cv,e,ifcCam,ifcView,ifcMeshList.map(x=>x.mesh));
+  if(!hit)return;
+  const rec=ifcMeshList.find(x=>x.mesh===hit);
   if(ifcSel.has(rec.id))ifcSel.delete(rec.id);else ifcSel.add(rec.id);
   refreshIfcHighlight(); renderIfcSelInfo();
  });
@@ -2190,7 +2235,15 @@ function download(content,name,mime){
 }
 $('btn-save').onclick=()=>save(true);
 $('btn-export-json').onclick=()=>download(JSON.stringify(P,null,1),PID+'_cotizador.json','application/json');
-window.addEventListener('beforeunload',()=>save(false));
+$('btn-delete').onclick=()=>{
+ if(!confirm(`¿Eliminar el proyecto "${P.nombre}"? Esta acción no se puede deshacer.`))return;
+ const all=JSON.parse(localStorage.getItem(KEY)||'{}'); delete all[PID]; localStorage.setItem(KEY,JSON.stringify(all));
+ window.removeEventListener('beforeunload',beforeUnload);
+ fetch('/api/delete-project',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:PID})})
+  .catch(()=>{}).finally(()=>{location.href='index.html';});
+};
+function beforeUnload(){save(false);}
+window.addEventListener('beforeunload',beforeUnload);
 
 /* ================= INIT ================= */
 bindAll();
