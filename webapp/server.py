@@ -106,6 +106,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 json.dump(datos.get("data", {}), f, ensure_ascii=False, indent=1)
             return self._json(200, {"ok": True, "ruta": ruta})
 
+        if self.path == "/api/delete-project":
+            nombre = re.sub(r"[^A-Za-z0-9_\-]", "_", str(datos.get("filename", "")))[:80]
+            if not nombre:
+                return self._json(400, {"ok": False, "error": "filename requerido"})
+            ruta = os.path.join(PROYECTOS_DIR, nombre + ".json")
+            existia = os.path.isfile(ruta)
+            if existia:
+                os.remove(ruta)
+            return self._json(200, {"ok": True, "borrado": existia})
+
         if self.path == "/api/send-email":
             cfg = leer_config_email()
             if not cfg:
